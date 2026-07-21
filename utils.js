@@ -141,7 +141,7 @@ window.Utils = {
     // 8. DASHBOARD HELPERS
     // ============================================================
 
-    // ---- NEW: Filter active customers (exclude inactive & deleted) ----
+    // ---- Filter active customers (exclude inactive & deleted) ----
     getActiveCustomers: function(data) {
         if (!data || !Array.isArray(data)) return [];
         return data.filter(customer => {
@@ -165,6 +165,12 @@ window.Utils = {
             const active = this.getActiveCustomers(window.masterData || []);
             lblRecords.innerText = active.length;
         }
+    },
+
+    // ---- 🆕 Count digital bills ----
+    countDigitalBills: function(data) {
+        if (!data || !Array.isArray(data)) return 0;
+        return data.filter(row => this.hasMethod(row.method, 'digital')).length;
     },
 
     // ============================================================
