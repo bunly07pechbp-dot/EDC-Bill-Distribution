@@ -1485,3 +1485,106 @@ body.dark-theme .next-up-card:first-child {
     background: #1e293b !important;
     border-color: #3b82f6 !important;
 }
+/* ============================================================
+   📱 FIX: Jobs Tab Mobile Layout
+   ============================================================ */
+
+@media (max-width: 480px) {
+    /* Jobs Screen container */
+    .jobs-screen {
+        padding: 8px !important;
+        margin-top: 8px !important;
+    }
+
+    /* Import bars */
+    .jobs-import-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    .jobs-import-bar .btn {
+        width: 100% !important;
+        font-size: 13px !important;
+        padding: 10px !important;
+        min-height: 44px !important;
+    }
+
+    .jobs-import-hint {
+        font-size: 12px !important;
+        text-align: center !important;
+    }
+
+    /* Search cabinet */
+    #search-cabinet {
+        font-size: 14px !important;
+        padding: 10px 12px !important;
+        min-height: 40px !important;
+    }
+
+    /* Job Cards */
+    .job-card {
+        padding: 12px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .job-card-top {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 4px !important;
+    }
+
+    .job-card-top strong {
+        font-size: 15px !important;
+        word-break: break-word !important;
+    }
+
+    .job-status-badge {
+        font-size: 11px !important;
+        padding: 2px 10px !important;
+    }
+
+    .job-card-meta {
+        font-size: 12px !important;
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+    }
+
+    .job-card-actions {
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    .job-card-actions .btn {
+        font-size: 13px !important;
+        padding: 6px 12px !important;
+        min-height: 36px !important;
+        flex: 1 1 auto !important;
+        min-width: 60px !important;
+    }
+
+    .job-delete-btn {
+        width: 36px !important;
+        min-width: 36px !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Pagination */
+    .jobs-pagination {
+        gap: 10px !important;
+        padding: 12px 0 !important;
+    }
+
+    .jobs-pagination .page-btn {
+        font-size: 13px !important;
+        padding: 6px 12px !important;
+        min-height: 34px !important;
+    }
+
+    .jobs-pagination span {
+        font-size: 13px !important;
+        min-width: 40px !important;
+    }
+}
