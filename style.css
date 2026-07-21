@@ -1413,3 +1413,75 @@ button,
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
+
+/* ============================================================
+   📱 FIX: Card View Name Visibility (Mobile)
+   ============================================================ */
+
+/* ធ្វើឲ្យឈ្មោះនៅលើ Card ងងឹត និងមើលឃើញច្បាស់ */
+.next-up-card-info strong {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+}
+
+/* នៅលើទូរស័ព្ទ (អេក្រង់តូច) បង្កើនទំហំ និងកម្រាស់អក្សរ */
+@media (max-width: 480px) {
+    .next-up-card-info strong {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        display: block !important;
+        line-height: 1.4;
+    }
+
+    .next-up-card-meta {
+        font-size: 13px !important;
+        color: #475569 !important;
+        font-weight: 500 !important;
+        display: block !important;
+    }
+
+    .next-up-card-address {
+        font-size: 13px !important;
+        color: #475569 !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        display: block !important;
+        margin-top: 4px;
+    }
+
+    .next-up-card {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+    }
+
+    .next-up-card:first-child {
+        background: #ffffff !important;
+        border: 2px solid #2563eb !important;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.15) !important;
+    }
+}
+
+/* Dark mode */
+body.dark-theme .next-up-card-info strong {
+    color: #f1f5f9 !important;
+}
+
+body.dark-theme .next-up-card-meta,
+body.dark-theme .next-up-card-address {
+    color: #94a3b8 !important;
+}
+
+body.dark-theme .next-up-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+body.dark-theme .next-up-card:first-child {
+    background: #1e293b !important;
+    border-color: #3b82f6 !important;
+}
