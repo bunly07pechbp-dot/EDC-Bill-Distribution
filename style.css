@@ -1588,3 +1588,33 @@ body.dark-theme .next-up-card:first-child {
         min-width: 40px !important;
     }
 }
+/* ============================================================
+   📱 FIX: Jump Button Too Long on Mobile
+   ============================================================ */
+
+@media (max-width: 480px) {
+    /* Jump bar layout */
+    .jump-to-in-bar {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    /* Input field - full width */
+    #jump-to-in-input {
+        flex: 1 1 100% !important;
+        min-height: 40px !important;
+        font-size: 14px !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Jump button - smaller and auto width */
+    #btn-jump-to-in {
+        flex: 0 0 auto !important;
+        padding: 8px 16px !important;
+        min-height: 40px !important;
+        font-size: 14px !important;
+        width: auto !important;
+        min-width: 60px !important;
+        border-radius: var(--radius-sm) !important;
+    }
+}
