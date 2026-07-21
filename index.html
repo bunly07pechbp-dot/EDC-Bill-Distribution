@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EDC Route Billing Management System</title>
+    
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <meta name="theme-color" content="#1a56db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <link rel="stylesheet" href="style.css?v=19">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js?v=19"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+            console.log('📄 pdf.js version 3.11.174 loaded successfully.');
+        } else {
+            console.warn('⚠️ pdf.js library not loaded.');
+        }
+    </script>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- Header -->
+    <div class="header-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 8px;">
+            <div style="text-align: left;">
+                <h1>⚡ EDC Bill Distribution by PBL</h1>
+                <p id="current-billing-month">July 2026</p>
+            </div>
+            <button id="btn-theme-toggle" class="btn btn-sm" style="background: rgba(255,255,255,0.2); border-radius: var(--radius-sm); min-height: 40px; padding: 8px 16px;">
+                <i data-lucide="moon" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i> 
+                <span style="margin-left: 4px; vertical-align: middle; font-size: 13px;">Dark Mode</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="app-tabs" id="app-tabs">
+        <button type="button" class="app-tab tab-active" id="tab-setup" onclick="openSetupTab()">🏠 Home</button>
+        <button type="button" class="app-tab" id="tab-jobs" onclick="openJobsTab()">📋 Jobs</button>
+        <button type="button" class="app-tab" id="tab-companies" onclick="openCompaniesTab()">🏢 Reports</button>
+        <button type="button" class="app-tab" id="tab-regular" onclick="openRegularTab()">📊 Regular</button>
+        <!-- 🆕 Analytics Tab -->
+        <button type="button" class="app-tab" id="tab-analytics" onclick="openAnalyticsTab()">📈 Analytics</button>
+    </div>
+
+    <!-- Global Search -->
+    <div class="search-section" style="margin-bottom: 20px;">
+        <input type="text" id="search-invoice" placeholder="🔍 Search IN / Name / Meter..." style="width: 100%; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-input); color: var(--text); font-size: 16px; min-height: 48px;">
+    </div>
+
+    <!-- AREA SETUP / HOME DASHBOARD -->
+    <div id="area-setup">
+        <div class="history-container" id="block-history">
+            <label for="history-select">📜 រំលឹកមើលប្រវត្តិចែកចាស់ៗ៖</label>
+            <select id="history-select" class="history-select">
+                <option value="">-- ជ្រើសរើសកាប៊ីន --</option>
+            </select>
+            <button class="btn btn-primary" id="btn-load-history" style="width: auto; background-color: #4f46e5;">👁️ មើលប្រវត្តិ</button>
+        </div>
+
+        <!-- Main Summary Card -->
+        <div class="glass-card main-summary-panel" id="block-stats" style="background: var(--bg); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border); margin-bottom: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="font-size: 14px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">🏠 Total Houses</h3>
+                <p id="stat-records" style="font-size: 36px; font-weight: 800; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</p>
+            </div>
+            
+            <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; display: grid;">
+                <div class="stat-card" style="background: var(--bg-card); display: block;" id="card-delivered-target">
+                    <h3>✅ Delivered</h3>
+                    <p id="stat-delivered">0</p>
+                </div>
+                <div class="stat-card" style="background: var(--bg-card); display: block;" id="card-pending-target">
+                    <h3>⏳ Pending</h3>
+                    <p id="stat-pending">0</p>
+                </div>
+                <div class="stat-card" style="background: var(--bg-card); display: block;">
+                    <h3>📊 ស្ថានភាពប្រព័ន្ធ</h3>
+                    <p id="stat-status" style="font-size: 14px; font-weight: 600; color: var(--text-secondary); padding-top: 4px;">រង់ចាំការបញ្ចូលហ្វាល់</p>
+                </div>
+                <div class="stat-card" style="background: var(--bg-card); display: block;">
+                    <h3>📱 Digital</h3>
+                    <p id="stat-digital" style="font-size: 24px; font-weight: 800;">0</p>
+                </div>
+                <div id="stat-deleted" style="display:none;">0</div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-section">
+                <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px;">
+                    <span>Progress</span>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="job-progress-bar" style="height: 12px; background: var(--border);">
+                    <div id="progress-bar-fill" class="job-progress-fill" style="width: 0%; height:100%; background:linear-gradient(90deg, #16a34a, #22c55e); border-radius:999px; transition:width 0.3s ease;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="action-bar" id="block-actions" style="display: flex; flex-direction: column; gap: 10px; background: none; border: none; padding: 0;">
+            
+            <!-- 🛠️ Safe iOS Overlay Layout for Excel Input -->
+            <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" multiple style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
+                <button class="btn btn-primary" id="btn-import-trigger" style="min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
+                    📥 Import Master Data
+                </button>
+            </div>
+            
+            <button class="btn btn-success" id="btn-clean-data" disabled style="min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
+                📋 New Job (Clean Data)
+            </button>
+            
+            <button class="btn" id="btn-sorting-mode" style="background:#7c3aed; min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
+                ▶ Continue Job (Sorting)
+            </button>
+            
+            <!-- More Tools -->
+            <div style="width:100%; margin-top: 10px;">
+                <details style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow-sm);">
+                    <summary style="font-size: 14px; font-weight: 700; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;">
+                        <i data-lucide="settings" style="width: 16px; height: 16px;"></i> 🛠️ More Tools & Maintenance
+                    </summary>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px;">
+                        <button class="btn" id="btn-export-json" style="background:#0d9488; min-height: 46px; font-size: 13px;">💾 Backup (Export)</button>
+                        
+                        <!-- 🛠️ Safe iOS Overlay Layout for JSON Input -->
+                        <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
+                            <input type="file" id="restore-file-input" accept=".json" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
+                            <button class="btn" id="btn-import-json" style="background:#475569; min-height: 46px; font-size: 13px; width: 100%;">📂 Restore (Import)</button>
+                        </div>
+                        
+                        <button class="btn btn-danger" id="btn-clear-master-data" style="min-height: 46px; font-size: 13px;">🗑️ New System Data</button>
+                        <button class="btn" id="btn-clear-memory" style="background:#64748b; font-size:13px; min-height: 46px;">🧹 Clear Cache</button>
+                        <button class="btn btn-warning" id="btn-close-month" style="display: none; min-height: 46px;">🔄 Close Month</button>
+                    </div>
+                    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted);" id="storage-usage-info">
+                        <i data-lucide="hard-drive" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle;"></i> Storage Usage Controlled via System Memory
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- Route Sequence -->
+        <div class="route-container" id="area-setup-sequence" style="margin-top: 20px;">
+            <label for="route-sequence">🔀 លំដាប់ផ្លូវដើរ (បញ្ចូលលេខ IN តាមលំដាប់)៖</label>
+            <textarea id="route-sequence" rows="5" placeholder="243686&#10;714976&#10;655851"></textarea>
+            <button class="btn btn-primary" id="btn-process-route" style="background-color: #0284c7; width: 100%; min-height: 48px; margin-top: 8px;">🚀 រៀបចំតារាងចែក</button>
+        </div>
+    </div>
+
+    <!-- JOBS SCREEN -->
+    <div class="jobs-screen" id="area-jobs" style="display:none;">
+        <div class="jobs-import-bar" style="margin-bottom: 12px;">
+            <!-- 🛠️ Safe iOS Overlay Layout for Workbook Input -->
+            <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
+                <input type="file" id="jobs-file-input" accept=".xlsx, .xls" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
+                <button class="btn btn-primary" id="btn-jobs-import-trigger" style="width: 100%;">📥 នាំចូល Workbook (Multi-sheet)</button>
+            </div>
+            <p class="jobs-import-hint">១ Worksheet = ១ Job (យកតែជួរឈរ "លេខ IN")</p>
+        </div>
+        
+        <div class="jobs-import-bar" style="margin-bottom: 16px;">
+            <!-- 🛠️ Safe iOS Overlay Layout for PDF Input -->
+            <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
+                <input type="file" id="digitalbill-file-input" accept=".pdf" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
+                <button class="btn btn-primary" id="btn-digitalbill-import-trigger" style="background:#7c3aed; width: 100%;">📲 នាំចូល Digital Bill (PDF)</button>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <input type="text" id="search-cabinet" placeholder="🔍 Search Cabinet..." style="width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-input); color: var(--text); min-height: 44px;">
+        </div>
+
+        <div class="jobs-list" id="jobs-list"></div>
+    </div>
+
+    <!-- COMPANIES SCREEN -->
+    <div class="companies-screen" id="area-companies" style="display:none;"></div>
+
+    <!-- REGULAR SCREEN -->
+    <div class="regular-screen" id="area-regular" style="display:none;"></div>
+
+    <!-- 🆕 ANALYTICS SCREEN -->
+    <div class="analytics-screen" id="area-analytics" style="display:none;">
+        <div class="analytics-header" style="margin-bottom: 20px;">
+            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">📈 Smart Analytics & Automation</h2>
+            <p style="color: var(--text-secondary); font-size: 14px;">វិភាគទិន្នន័យ និងប្រើប្រាស់មុខងារស្វ័យប្រវត្តិកម្ម</p>
+        </div>
+
+        <!-- Reports Section -->
+        <div class="analytics-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 12px;">📊 Reports</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <button class="btn btn-primary" id="btn-export-monthly-report" style="flex: 1; min-width: 150px;">
+                    📊 Export Monthly Report
+                </button>
+                <button class="btn btn-success" id="btn-export-analytics-excel" style="flex: 1; min-width: 150px;">
+                    📈 Export Analytics Excel
+                </button>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">បង្កើតរបាយការណ៍ប្រចាំខែ និងវិភាគទិន្នន័យកាប៊ីន</p>
+        </div>
+
+        <!-- Automation Section -->
+        <div class="analytics-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 12px;">🤖 Automation</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <button class="btn btn-warning" id="btn-auto-tag-digital" style="flex: 1; min-width: 150px;">
+                    🏷️ Auto-Tag Digital Bills
+                </button>
+                <button class="btn btn-info" id="btn-analyze-route" style="flex: 1; min-width: 150px; background: #7c3aed; color: white;">
+                    🗺️ Analyze Route Efficiency
+                </button>
+                <button class="btn btn-danger" id="btn-detect-anomalies" style="flex: 1; min-width: 150px;">
+                    🚨 Detect Anomalies
+                </button>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">ដំណើរការស្វ័យប្រវត្តិកម្ម និងវិភាគកំហុស</p>
+        </div>
+
+        <!-- AI Analysis Results -->
+        <div class="analytics-card" id="analytics-results" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: none;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 12px;">📋 Result</h3>
+            <div id="analytics-result-content" style="font-size: 14px; color: var(--text); white-space: pre-wrap; max-height: 300px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- FIELD AREA -->
+    <div class="field-area" id="area-field" style="display:none;">
+        <div class="field-header-bar">
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button type="button" id="btn-back-top" style="display:none; background:#1e3a8a; color:white; border:none; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:bold; cursor:pointer; align-items:center; gap:6px;">
+                        ⬅️ ត្រឡប់
+                    </button>
+                    <span id="lbl-current-cabin" style="font-size:16px; font-weight:bold; color:var(--primary);">📋 ផ្លូវជាក់ស្តែង</span>
+                </div>
+                <span class="counter-badge" id="lbl-counter-progress">ចែកបាន៖ 0/0</span>
+            </div>
+            
+            <div class="jump-to-in-bar">
+                <input type="text" id="jump-to-in-input" inputmode="numeric" placeholder="🎯 លោតទៅលេខ IN...">
+                <button type="button" class="btn btn-primary" id="btn-jump-to-in">Jump</button>
+            </div>
+            
+            <div style="background:var(--bg); border:1px solid var(--border); padding:8px 12px; border-radius:6px; display:flex; align-items:center; gap:8px; width:100%;">
+                <input type="checkbox" id="chk-hide-done" style="width:18px; height:18px; cursor:pointer;">
+                <label for="chk-hide-done" style="font-weight:bold; color:var(--text); cursor:pointer; font-size:13px;">👁️ លាក់ផ្ទះដែលចែករួច</label>
+            </div>
+        </div>
+
+        <div class="next-up-panel" id="next-up-panel">
+            <div class="next-up-header">🎯 បន្ទាប់ត្រូវចែក (ចុចរហ័ស)</div>
+            <div class="queue-stats" id="queue-stats">
+                <div class="queue-stat"><span class="queue-stat-val" id="qstat-total">0</span><span class="queue-stat-label">សរុប</span></div>
+                <div class="queue-stat"><span class="queue-stat-val" id="qstat-delivered">0</span><span class="queue-stat-label">បានចែក</span></div>
+                <div class="queue-stat"><span class="queue-stat-val" id="qstat-remaining">0</span><span class="queue-stat-label">នៅសល់</span></div>
+                <div class="queue-stat"><span class="queue-stat-val" id="qstat-digital">0</span><span class="queue-stat-label">Digital</span></div>
+                <div class="queue-stat"><span class="queue-stat-val" id="qstat-pending">0</span><span class="queue-stat-label">មិនទាន់ចែក</span></div>
+            </div>
+            <div class="next-up-cards" id="next-up-cards"></div>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead id="table-thead"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+            <button class="btn btn-primary" id="btn-back-to-jobs" style="width:100%; display:none;">⬅️ ត្រឡប់ទៅបញ្ជី Jobs</button>
+            <button class="btn btn-success" id="btn-export-excel" style="width:100%; padding:14px;">📤 Export</button>
+            <button class="btn btn-slate" id="btn-back-setup" style="width:100%; font-size:13px; padding:8px;">⬅️ ត្រឡប់ទៅកែប្រែ</button>
+        </div>
+    </div>
+</div>
+
+<!-- METHOD PICKER MODAL -->
+<div class="method-picker-overlay" id="method-picker-modal">
+    <div class="method-picker-sheet">
+        <div class="method-picker-handle"></div>
+        <div class="method-picker-header">
+            <span>🚚 ជ្រើសរើសវិធីចែក</span>
+            <button type="button" class="method-picker-close" id="method-picker-close" aria-label="បិទ">✕</button>
+        </div>
+        <p class="method-picker-name" id="method-picker-name"></p>
+        <div class="method-picker-grid">
+            <button type="button" class="method-option method-option-digital" data-method="digital">
+                <span class="method-option-icon">📱</span><span>Digital</span>
+            </button>
+            <button type="button" class="method-option method-option-box" data-method="box">
+                <span class="method-option-icon">📦</span><span>ប្រអប់</span>
+            </button>
+            <button type="button" class="method-option method-option-door" data-method="door">
+                <span class="method-option-icon">🚪</span><span>ទ្វារ</span>
+            </button>
+            <button type="button" class="method-option method-option-owner" data-method="owner">
+                <span class="method-option-icon">🤝</span><span>ម្ចាស់</span>
+            </button>
+            <button type="button" class="method-option method-option-neighbor" data-method="neighbor" style="grid-column: span 2;">
+                <span class="method-option-icon">👥</span><span>អ្នកជិតខាង</span>
+            </button>
+            <button type="button" class="method-option method-option-suspended" data-method="suspended" style="grid-column: span 2; border-color: #f59e0b;">
+                <span class="method-option-icon">⏸️</span><span>ផ្អាកប្រើ</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- ============================================================
+   SCRIPTS
+   ============================================================ -->
+<script src="app.js?v=19"></script>
+<script src="utils.js?v=19"></script>
+<script src="db.js?v=19"></script>
+<script src="storage.js?v=19"></script>
+<script src="excel.js?v=19"></script>
+<script src="route.js?v=19"></script>
+<script src="ui.js?v=19"></script>
+<script src="export.js?v=19"></script>
+<script src="jobs.js?v=19"></script>
+<script src="digitalbill.js?v=19"></script>
+<script src="sorting-mode.js?v=19"></script>
+<script src="company-report.js?v=19"></script>
+<script src="archive.js?v=19"></script>
+<script src="backup.js?v=19"></script>
+<script src="regular.js?v=19"></script>
+<script src="reports.js?v=19"></script>
+<script src="automation.js?v=19"></script>
+
+<!-- ============================================================
+   TAB HANDLERS
+   ============================================================ -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if(window.lucide) { lucide.createIcons(); }
+    });
+
+    function openSetupTab() {
+        document.getElementById('area-setup').style.display = 'block';
+        document.getElementById('block-history').style.display = 'flex';
+        document.getElementById('block-stats').style.display = 'block';
+        document.getElementById('block-actions').style.display = 'flex';
+        document.getElementById('area-field').style.display = 'none';
+        document.getElementById('area-jobs').style.display = 'none';
+        document.getElementById('area-companies').style.display = 'none';
+        document.getElementById('area-regular').style.display = 'none';
+        document.getElementById('area-analytics').style.display = 'none';
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('tab-active'));
+        document.getElementById('tab-setup').classList.add('tab-active');
+        if (window.StorageEngine && typeof window.StorageEngine.saveSessionCache === 'function') {
+            window.StorageEngine.saveSessionCache();
+        }
+        refreshDashboardStats();
+    }
+    
+    function openJobsTab() {
+        document.getElementById('area-setup').style.display = 'none';
+        document.getElementById('block-history').style.display = 'none';
+        document.getElementById('block-stats').style.display = 'none';
+        document.getElementById('block-actions').style.display = 'none';
+        document.getElementById('area-field').style.display = 'none';
+        document.getElementById('area-companies').style.display = 'none';
+        document.getElementById('area-regular').style.display = 'none';
+        document.getElementById('area-analytics').style.display = 'none';
+        document.getElementById('area-jobs').style.display = 'block';
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('tab-active'));
+        document.getElementById('tab-jobs').classList.add('tab-active');
+
+        if (window.JobsEngine) {
+            if (!window.JobsEngine._initialized) {
+                try { window.JobsEngine.init(); window.JobsEngine._initialized = true; } catch(e) {}
+            }
+            setTimeout(() => { try { window.JobsEngine.renderJobsList(); } catch(e) {} }, 100);
+        }
+        if (window.StorageEngine && typeof window.StorageEngine.saveSessionCache === 'function') {
+            window.StorageEngine.saveSessionCache();
+        }
+    }
+    
+    function openCompaniesTab() {
+        document.getElementById('area-setup').style.display = 'none';
+        document.getElementById('block-history').style.display = 'none';
+        document.getElementById('block-stats').style.display = 'none';
+        document.getElementById('block-actions').style.display = 'none';
+        document.getElementById('area-field').style.display = 'none';
+        document.getElementById('area-jobs').style.display = 'none';
+        document.getElementById('area-regular').style.display = 'none';
+        document.getElementById('area-analytics').style.display = 'none';
+        document.getElementById('area-companies').style.display = 'block';
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('tab-active'));
+        document.getElementById('tab-companies').classList.add('tab-active');
+        if (window.CompanyReport && typeof window.CompanyReport.renderCompanies === 'function') {
+            window.CompanyReport.renderCompanies();
+            window.CompanyReport.updateStats();
+        }
+        if (window.StorageEngine && typeof window.StorageEngine.saveSessionCache === 'function') {
+            window.StorageEngine.saveSessionCache();
+        }
+    }
+
+    function openRegularTab() {
+        document.getElementById('area-setup').style.display = 'none';
+        document.getElementById('block-history').style.display = 'none';
+        document.getElementById('block-stats').style.display = 'none';
+        document.getElementById('block-actions').style.display = 'none';
+        document.getElementById('area-field').style.display = 'none';
+        document.getElementById('area-jobs').style.display = 'none';
+        document.getElementById('area-companies').style.display = 'none';
+        document.getElementById('area-analytics').style.display = 'none';
+        document.getElementById('area-regular').style.display = 'block';
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('tab-active'));
+        document.getElementById('tab-regular').classList.add('tab-active');
+
+        if (window.RegularEngine) {
+            if (!window.RegularEngine._initialized) {
+                window.RegularEngine.init();
+                window.RegularEngine._initialized = true;
+            } else {
+                window.RegularEngine.renderAll();
+            }
+        }
+        if (window.StorageEngine && typeof window.StorageEngine.saveSessionCache === 'function') {
+            window.StorageEngine.saveSessionCache();
+        }
+    }
+
+    function openAnalyticsTab() {
+        document.getElementById('area-setup').style.display = 'none';
+        document.getElementById('block-history').style.display = 'none';
+        document.getElementById('block-stats').style.display = 'none';
+        document.getElementById('block-actions').style.display = 'none';
+        document.getElementById('area-field').style.display = 'none';
+        document.getElementById('area-jobs').style.display = 'none';
+        document.getElementById('area-companies').style.display = 'none';
+        document.getElementById('area-regular').style.display = 'none';
+        document.getElementById('area-analytics').style.display = 'block';
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('tab-active'));
+        document.getElementById('tab-analytics').classList.add('tab-active');
+        if (window.StorageEngine && typeof window.StorageEngine.saveSessionCache === 'function') {
+            window.StorageEngine.saveSessionCache();
+        }
+        // Hide results panel on open
+        const results = document.getElementById('analytics-results');
+        if (results) results.style.display = 'none';
+    }
+
+    function refreshDashboardStats() {
+        if (window.ArchiveEngine && typeof window.ArchiveEngine.updateDashboard === 'function') {
+            try {
+                window.ArchiveEngine.updateDashboard();
+                console.log('🔄 Dashboard stats refreshed.');
+            } catch (e) {
+                console.warn('⚠️ Failed to refresh dashboard stats:', e);
+            }
+        }
+    }
+
+    (function emergencyFix() {
+        let attempts = 0;
+        const maxAttempts = 20;
+        const checkInterval = setInterval(function() {
+            attempts++;
+            if (window.JobsEngine && !window.JobsEngine._initialized && typeof window.JobsEngine.init === 'function') {
+                try { window.JobsEngine.init(); window.JobsEngine._initialized = true; } catch(e) {}
+            }
+            if (window.StorageEngine && window.StorageEngine._isInitialized) {
+                refreshDashboardStats();
+            }
+            if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                refreshDashboardStats();
+            }
+        }, 500);
+    })();
+
+    if (window.JobsEngine && window.JobsEngine._initialized === undefined) window.JobsEngine._initialized = false;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(refreshDashboardStats, 600);
+    });
+</script>
+
+</body>
+</html>
