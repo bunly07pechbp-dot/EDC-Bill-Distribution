@@ -16,7 +16,10 @@ window.UI = {
     _vFilteredRows: null,
     _vScrollHandler: null,
     _vContainer: null, // PHASE 4: container reference for virtual scrolling
-    // PHASE 1: Removed _debouncedPersist - now handled centrally in StorageEngine
+
+    // PHASE 7: Search state
+    _currentSearchTerm: '',
+    _applySearch: null,
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
@@ -148,21 +151,61 @@ window.UI = {
             chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
         }
 
-        // --- Global Search Bar ---
+        // --- Global Search Bar (PHASE 7: Use Search Index) ---
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
-            const runSearch = window.Utils.debounce((term) => {
-                document.querySelectorAll('#table-body tr[data-invoice]').forEach(row => {
-                    row.style.display = (row.dataset.search || '').includes(term) ? '' : 'none';
+            // Store the current search term and a function to apply it
+            this._currentSearchTerm = '';
+
+            const applySearch = (term) => {
+                const rows = document.querySelectorAll('#table-body tr[data-invoice]');
+                if (!term || !term.trim()) {
+                    // Show all rows
+                    rows.forEach(row => row.style.display = '');
+                    return;
+                }
+
+                // Use search index if available, fallback to DOM search
+                let matchedInvoices;
+                if (window.Utils && typeof window.Utils.searchInvoices === 'function') {
+                    matchedInvoices = window.Utils.searchInvoices(term);
+                } else {
+                    // Fallback: slow DOM scan
+                    const lowerTerm = term.toLowerCase();
+                    matchedInvoices = [];
+                    rows.forEach(row => {
+                        const searchText = (row.dataset.search || '').toLowerCase();
+                        if (searchText.includes(lowerTerm)) {
+                            matchedInvoices.push(row.dataset.invoice);
+                        }
+                    });
+                }
+
+                const matchedSet = new Set(matchedInvoices);
+
+                rows.forEach(row => {
+                    const invoice = row.dataset.invoice;
+                    row.style.display = matchedSet.has(invoice) ? '' : 'none';
                 });
-            }, 80);
+            };
+
+            const runSearch = window.Utils.debounce(applySearch, 200);
+
             searchBox.addEventListener('input', (e) => {
                 const term = e.target.value.trim().toLowerCase();
+                this._currentSearchTerm = term;
                 const wasActive = this._searchActive;
                 this._searchActive = term.length > 0;
-                if (this._searchActive !== wasActive) this.renderTable(window.currentExportData);
-                runSearch(term);
+                if (this._searchActive !== wasActive) {
+                    // Re-render table when search state changes (show/hide rows)
+                    this.renderTable(window.currentExportData);
+                }
+                // Apply search after render (defer to let DOM update)
+                setTimeout(() => runSearch(term), 0);
             });
+
+            // Store applySearch function for re-apply after renders
+            this._applySearch = applySearch;
         }
 
         // --- Jump to IN ---
@@ -929,7 +972,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 8. TABLE RENDER (PHASE 4: Virtual Scrolling)
+    // 8. TABLE RENDER (PHASE 4: Virtual Scrolling + PHASE 7 Search Re-apply)
     // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
@@ -1022,6 +1065,11 @@ window.UI = {
             this._teardownVirtualRender();
             tbody.innerHTML = filtered.map((r, i) => this._buildRowHtml(r, i+1)).join('');
         }
+
+        // --- PHASE 7: Re-apply search after render ---
+        if (this._searchActive && this._applySearch && this._currentSearchTerm) {
+            setTimeout(() => this._applySearch(this._currentSearchTerm), 50);
+        }
     },
 
     // PHASE 4: Virtual scrolling implementation
@@ -1096,6 +1144,11 @@ window.UI = {
         html += `<tr class="v-spacer" style="height:${(n - 1 - end) * rh}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
         
         tbody.innerHTML = html;
+
+        // --- PHASE 7: Re-apply search after virtual render ---
+        if (this._searchActive && this._applySearch && this._currentSearchTerm) {
+            setTimeout(() => this._applySearch(this._currentSearchTerm), 50);
+        }
     },
 
     cleanData: function() {
