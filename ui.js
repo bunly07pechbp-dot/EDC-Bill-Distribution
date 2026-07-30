@@ -16,10 +16,7 @@ window.UI = {
     _vFilteredRows: null,
     _vScrollHandler: null,
     _vContainer: null, // PHASE 4: container reference for virtual scrolling
-
-    // PHASE 7: Search state (safe implementation)
-    _currentSearchTerm: '',
-    _applySearch: null,
+    // PHASE 1: Removed _debouncedPersist - now handled centrally in StorageEngine
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
@@ -151,106 +148,21 @@ window.UI = {
             chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
         }
 
-        // --- Global Search Bar (PHASE 7: Auto-rebuild + Enter key) ---
+        // --- Global Search Bar ---
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
-            // Store current search state
-            this._currentSearchTerm = '';
-            this._applySearch = null;
-
-            const applySearch = (term) => {
-                try {
-                    // --- PHASE 7: Auto-rebuild search index if missing ---
-                    if (window.Utils && typeof window.Utils.searchInvoices === 'function') {
-                        // Check if search index exists or is empty
-                        if (!window.Utils._searchIndex || window.Utils._searchIndex.size === 0) {
-                            console.log('🔄 Search index missing or empty, rebuilding...');
-                            if (window.masterData && window.masterData.length > 0) {
-                                window.Utils.buildSearchIndex(window.masterData);
-                                console.log('✅ Search index rebuilt. Size:', window.Utils._searchIndex?.size);
-                            } else {
-                                console.warn('⚠️ Cannot rebuild search index: masterData is empty');
-                            }
-                        }
-                    }
-
-                    const rows = document.querySelectorAll('#table-body tr[data-invoice]');
-                    console.log(`🔍 Search term: "${term}", rows found: ${rows.length}`);
-
-                    if (!term || !term.trim()) {
-                        rows.forEach(row => row.style.display = '');
-                        return;
-                    }
-
-                    let matchedSet = new Set();
-
-                    // 1. Use Search Index (if available)
-                    if (window.Utils && typeof window.Utils.searchInvoices === 'function') {
-                        const matchedInvoices = window.Utils.searchInvoices(term);
-                        matchedSet = new Set(matchedInvoices);
-                        console.log(`✅ Search Index returned ${matchedSet.size} matches`);
-                    } else {
-                        console.warn('⚠️ searchInvoices not available, using DOM fallback');
-                    }
-
-                    // 2. If Search Index returns nothing, use DOM fallback
-                    if (matchedSet.size === 0 && rows.length > 0) {
-                        console.log('🔄 Using DOM fallback search');
-                        const lowerTerm = term.toLowerCase();
-                        rows.forEach(row => {
-                            const searchText = (row.dataset.search || '').toLowerCase();
-                            if (searchText.includes(lowerTerm)) {
-                                matchedSet.add(row.dataset.invoice);
-                            }
-                        });
-                        console.log(`✅ DOM fallback found ${matchedSet.size} matches`);
-                    }
-
-                    // 3. Apply filtering
-                    rows.forEach(row => {
-                        const invoice = row.dataset.invoice;
-                        row.style.display = matchedSet.has(invoice) ? '' : 'none';
-                    });
-                } catch (err) {
-                    console.error('❌ Search error:', err);
-                }
-            };
-
-            const runSearch = window.Utils.debounce(applySearch, 200);
-
-            // Input event: debounced search
+            const runSearch = window.Utils.debounce((term) => {
+                document.querySelectorAll('#table-body tr[data-invoice]').forEach(row => {
+                    row.style.display = (row.dataset.search || '').includes(term) ? '' : 'none';
+                });
+            }, 80);
             searchBox.addEventListener('input', (e) => {
                 const term = e.target.value.trim().toLowerCase();
-                this._currentSearchTerm = term;
                 const wasActive = this._searchActive;
                 this._searchActive = term.length > 0;
-                if (this._searchActive !== wasActive) {
-                    // Re-render table when search state changes
-                    this.renderTable(window.currentExportData);
-                }
-                // Apply search after render (defer to let DOM update)
-                setTimeout(() => runSearch(term), 0);
+                if (this._searchActive !== wasActive) this.renderTable(window.currentExportData);
+                runSearch(term);
             });
-
-            // Enter key: immediate search (bypass debounce)
-            searchBox.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const term = searchBox.value.trim().toLowerCase();
-                    this._currentSearchTerm = term;
-                    this._searchActive = term.length > 0;
-                    if (this._applySearch) {
-                        this._applySearch(term);
-                    }
-                    // Re-render if search state changed
-                    if (this._searchActive !== this._searchActive) {
-                        this.renderTable(window.currentExportData);
-                    }
-                }
-            });
-
-            // Store applySearch function for re-apply after renders
-            this._applySearch = applySearch;
         }
 
         // --- Jump to IN ---
@@ -276,9 +188,8 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // --- Table Body Click (Method Picker) ---
-        // FIX: Use click only for table rows to avoid accidental triggers on scroll (iPhone)
-        // Removed touchstart/touchmove/touchend for table-body to prevent scroll conflicts
+        // --- Table Body Click (Method Picker) --- PHASE 5: Add touchstart for iOS
+        // Keep click for desktop
         document.getElementById('table-body').addEventListener('click', (e) => {
             if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
                 return;
@@ -291,6 +202,20 @@ window.UI = {
                 this.openMethodPicker(invoice, row.dataset.currentMethod);
             }
         });
+
+        // Add touchstart for faster mobile response
+        document.getElementById('table-body').addEventListener('touchstart', (e) => {
+            if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
+                return;
+            }
+            const row = e.target.closest('tr[data-invoice]');
+            if (row) {
+                const invoice = row.dataset.invoice;
+                const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
+                if (idx !== -1) { this.nextUpAnchorIndex = idx; this._rebuildQueueFromAnchor(); }
+                this.openMethodPicker(invoice, row.dataset.currentMethod);
+            }
+        }, { passive: true });
 
         // --- Method Picker Modal ---
         const modal = document.getElementById('method-picker-modal');
@@ -307,7 +232,7 @@ window.UI = {
         }
         document.getElementById('method-picker-close')?.addEventListener('click', () => this.closeMethodPicker());
 
-        // --- Next Up Cards --- PHASE 5: Add touchstart for iOS (buttons only, safe)
+        // --- Next Up Cards --- PHASE 5: Add touchstart for iOS
         document.getElementById('next-up-cards')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.quick-method-btn');
             if (btn) { this.commitSelection(btn.dataset.invoice, btn.dataset.method); this.updateRowMethodButton(btn.dataset.invoice); }
@@ -1004,7 +929,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 8. TABLE RENDER (PHASE 4: Virtual Scrolling + PHASE 7 Search)
+    // 8. TABLE RENDER (PHASE 4: Virtual Scrolling)
     // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
@@ -1097,11 +1022,6 @@ window.UI = {
             this._teardownVirtualRender();
             tbody.innerHTML = filtered.map((r, i) => this._buildRowHtml(r, i+1)).join('');
         }
-
-        // --- PHASE 7: Re-apply search after render ---
-        if (this._searchActive && this._applySearch && this._currentSearchTerm) {
-            setTimeout(() => this._applySearch(this._currentSearchTerm), 50);
-        }
     },
 
     // PHASE 4: Virtual scrolling implementation
@@ -1176,11 +1096,6 @@ window.UI = {
         html += `<tr class="v-spacer" style="height:${(n - 1 - end) * rh}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
         
         tbody.innerHTML = html;
-
-        // --- PHASE 7: Re-apply search after virtual render ---
-        if (this._searchActive && this._applySearch && this._currentSearchTerm) {
-            setTimeout(() => this._applySearch(this._currentSearchTerm), 50);
-        }
     },
 
     cleanData: function() {
