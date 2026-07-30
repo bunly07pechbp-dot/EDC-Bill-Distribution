@@ -15,8 +15,10 @@ window.UI = {
     _searchActive: false,
     _vFilteredRows: null,
     _vScrollHandler: null,
-    _vContainer: null, // PHASE 4: container reference for virtual scrolling
-    // PHASE 1: Removed _debouncedPersist - now handled centrally in StorageEngine
+    _vContainer: null,
+
+    _currentSearchTerm: '',
+    _applySearch: null,
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
@@ -148,21 +150,65 @@ window.UI = {
             chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
         }
 
-        // --- Global Search Bar ---
+        // --- Global Search Bar (Fixed Logic for Data Array Filtering) ---
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
-            const runSearch = window.Utils.debounce((term) => {
-                document.querySelectorAll('#table-body tr[data-invoice]').forEach(row => {
-                    row.style.display = (row.dataset.search || '').includes(term) ? '' : 'none';
-                });
-            }, 80);
+            this._currentSearchTerm = '';
+
+            const applySearch = (term) => {
+                try {
+                    const cleanTerm = term ? term.trim().toLowerCase() : '';
+                    this._currentSearchTerm = cleanTerm;
+                    this._searchActive = cleanTerm.length > 0;
+
+                    if (!window.currentExportData || window.currentExportData.length === 0) return;
+
+                    if (!cleanTerm) {
+                        this.renderTable(window.currentExportData);
+                        return;
+                    }
+
+                    // បើកចូល Field Mode ស្វ័យប្រវត្តិ ប្រសិនបើកំពុងនៅផ្ទាំង Setup
+                    if (document.getElementById('area-setup') && document.getElementById('area-setup').style.display !== 'none') {
+                        this.enterFieldMode(true);
+                    }
+
+                    // ស្វែងរកទិន្នន័យក្នុង Array ដើម
+                    const filteredData = window.currentExportData.filter(row => {
+                        const inv = String(row.invoice || '').toLowerCase();
+                        const name = String(row.name || '').toLowerCase();
+                        const box = String(row.box || '').toLowerCase();
+                        const addr = String(row.address || '').toLowerCase();
+                        const cabin = String(row.cabin || '').toLowerCase();
+
+                        return inv.includes(cleanTerm) || 
+                               name.includes(cleanTerm) || 
+                               box.includes(cleanTerm) || 
+                               addr.includes(cleanTerm) || 
+                               cabin.includes(cleanTerm);
+                    });
+
+                    this.renderTable(filteredData);
+
+                } catch (err) {
+                    console.error('❌ Search error:', err);
+                }
+            };
+
+            const runSearch = window.Utils ? window.Utils.debounce(applySearch, 200) : applySearch;
+
             searchBox.addEventListener('input', (e) => {
-                const term = e.target.value.trim().toLowerCase();
-                const wasActive = this._searchActive;
-                this._searchActive = term.length > 0;
-                if (this._searchActive !== wasActive) this.renderTable(window.currentExportData);
-                runSearch(term);
+                runSearch(e.target.value);
             });
+
+            searchBox.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applySearch(searchBox.value);
+                }
+            });
+
+            this._applySearch = applySearch;
         }
 
         // --- Jump to IN ---
@@ -188,34 +234,42 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // --- Table Body Click (Method Picker) --- PHASE 5: Add touchstart for iOS
-        // Keep click for desktop
-        document.getElementById('table-body').addEventListener('click', (e) => {
-            if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
-                return;
-            }
-            const row = e.target.closest('tr[data-invoice]');
-            if (row) {
-                const invoice = row.dataset.invoice;
-                const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
-                if (idx !== -1) { this.nextUpAnchorIndex = idx; this._rebuildQueueFromAnchor(); }
-                this.openMethodPicker(invoice, row.dataset.currentMethod);
-            }
-        });
+        // --- Table Body Click & Touch (Method Picker - Fixed for iPhone Scroll) ---
+        const tableBody = document.getElementById('table-body');
+        if (tableBody) {
+            let touchStartY = 0;
+            let isScrolling = false;
 
-        // Add touchstart for faster mobile response
-        document.getElementById('table-body').addEventListener('touchstart', (e) => {
-            if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
-                return;
-            }
-            const row = e.target.closest('tr[data-invoice]');
-            if (row) {
-                const invoice = row.dataset.invoice;
-                const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
-                if (idx !== -1) { this.nextUpAnchorIndex = idx; this._rebuildQueueFromAnchor(); }
-                this.openMethodPicker(invoice, row.dataset.currentMethod);
-            }
-        }, { passive: true });
+            tableBody.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+                isScrolling = false;
+            }, { passive: true });
+
+            tableBody.addEventListener('touchmove', (e) => {
+                const touchEndY = e.touches[0].clientY;
+                if (Math.abs(touchEndY - touchStartY) > 10) {
+                    isScrolling = true;
+                }
+            }, { passive: true });
+
+            tableBody.addEventListener('click', (e) => {
+                if (isScrolling) return;
+
+                if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
+                    return;
+                }
+                const row = e.target.closest('tr[data-invoice]');
+                if (row) {
+                    const invoice = row.dataset.invoice;
+                    const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
+                    if (idx !== -1) { 
+                        this.nextUpAnchorIndex = idx; 
+                        this._rebuildQueueFromAnchor(); 
+                    }
+                    this.openMethodPicker(invoice, row.dataset.currentMethod);
+                }
+            });
+        }
 
         // --- Method Picker Modal ---
         const modal = document.getElementById('method-picker-modal');
@@ -232,7 +286,7 @@ window.UI = {
         }
         document.getElementById('method-picker-close')?.addEventListener('click', () => this.closeMethodPicker());
 
-        // --- Next Up Cards --- PHASE 5: Add touchstart for iOS
+        // --- Next Up Cards ---
         document.getElementById('next-up-cards')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.quick-method-btn');
             if (btn) { this.commitSelection(btn.dataset.invoice, btn.dataset.method); this.updateRowMethodButton(btn.dataset.invoice); }
@@ -241,7 +295,7 @@ window.UI = {
         document.getElementById('next-up-cards')?.addEventListener('touchstart', (e) => {
             const btn = e.target.closest('.quick-method-btn');
             if (btn) { 
-                e.preventDefault(); // Prevent double-firing
+                e.preventDefault();
                 this.commitSelection(btn.dataset.invoice, btn.dataset.method); 
                 this.updateRowMethodButton(btn.dataset.invoice); 
             }
@@ -256,10 +310,9 @@ window.UI = {
         // --- Add House UI ---
         this._initAddHouseUI();
 
-        // --- 🌙 Dark Mode Toggle (FIXED with localStorage) ---
+        // --- Dark Mode Toggle ---
         const themeToggleBtn = document.getElementById('btn-theme-toggle');
         if (themeToggleBtn) {
-            // Remove any existing listeners to avoid duplicates
             const newBtn = themeToggleBtn.cloneNode(true);
             themeToggleBtn.parentNode.replaceChild(newBtn, themeToggleBtn);
             newBtn.addEventListener('click', () => this._toggleTheme());
@@ -316,7 +369,6 @@ window.UI = {
                             }
                         }
                     }
-                    // PHASE 1: Direct writes removed, use central persist
                     window.StorageEngine.persistAll();
                 }
             }
@@ -326,15 +378,12 @@ window.UI = {
     },
 
     // ============================================================
-    // 2. ADD HOUSE UI (Original - Unchanged)
+    // 2. ADD HOUSE UI
     // ============================================================
     _initAddHouseUI: function() {
-        // Add House button & modal logic - unchanged from original
-        // This function is preserved exactly as it was.
         const container = document.getElementById('area-field');
         if (!container) return;
 
-        // Check if already injected
         if (document.getElementById('btn-add-house')) return;
 
         const addBtn = document.createElement('button');
@@ -347,7 +396,6 @@ window.UI = {
 
         addBtn.addEventListener('click', () => this.openAddHouseModal());
 
-        // Create modal if not exists
         if (!document.getElementById('add-house-modal')) {
             const modalHtml = `
                 <div class="method-picker-overlay" id="add-house-modal" style="display:none; z-index: 9999;">
@@ -404,7 +452,6 @@ window.UI = {
             `;
             document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-            // Bind events
             document.getElementById('add-house-close').addEventListener('click', () => this.closeAddHouseModal());
             document.getElementById('add-house-skip-btn').addEventListener('click', () => {
                 document.getElementById('add-house-step1').style.display = 'none';
@@ -422,7 +469,6 @@ window.UI = {
             });
             document.getElementById('add-house-save-btn').addEventListener('click', () => this._addHouseConfirm());
 
-            // Close modal on overlay click
             document.getElementById('add-house-modal').addEventListener('click', (e) => {
                 if (e.target.id === 'add-house-modal') this.closeAddHouseModal();
             });
@@ -504,13 +550,11 @@ window.UI = {
             return;
         }
 
-        // Check duplicate in current export
         if (window.currentExportData.some(r => r.invoice === invoice)) {
             window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុងផ្លូវនេះ!`);
             return;
         }
 
-        // Check duplicate in master data
         if (window.Utils.findByInvoice(invoice)) {
             window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុង Master Data!`);
             return;
@@ -522,7 +566,6 @@ window.UI = {
             return;
         }
 
-        // Create new house
         const newHouse = {
             id: (window.masterData ? window.masterData.length : 0) + 1,
             invoice: invoice,
@@ -536,14 +579,11 @@ window.UI = {
             source: 'manual_insert'
         };
 
-        // Add to master data
         window.masterData.push(newHouse);
         window.Utils.rebuildMasterIndex();
 
-        // Add to current export data
         window.currentExportData.splice(refIndex + 1, 0, newHouse);
 
-        // Add to route sequence
         const routeBox = document.getElementById('route-sequence');
         if (routeBox) {
             const lines = routeBox.value.split('\n').filter(l => l.trim());
@@ -554,19 +594,17 @@ window.UI = {
             }
         }
 
-        // Persist
         window.StorageEngine.persistAll();
         this.closeAddHouseModal();
         window.Utils.showAlert(`✅ បានបន្ថែមផ្ទះថ្មី (IN ${invoice}) រួចរាល់!`);
         
-        // Re-render
         this.renderTable(window.currentExportData);
         this.renderNextUpPanel();
         this.updateProgressBar();
     },
 
     // ============================================================
-    // 3. CLEAR / PROGRESS (Unchanged)
+    // 3. CLEAR / PROGRESS
     // ============================================================
     clearAllData: function() {
         window.currentExportData = [];
@@ -628,7 +666,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 4. SWITCH MODES (Unchanged)
+    // 4. SWITCH MODES
     // ============================================================
     switchToSetupMode: function() {
         if (window.SortingMode && typeof window.SortingMode.close === 'function') {
@@ -739,7 +777,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 5. METHOD PICKER (Unchanged)
+    // 5. METHOD PICKER
     // ============================================================
     methodLabel: function(method) { return window.Utils.methodLabel(method); },
 
@@ -786,7 +824,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 6. COMMIT SELECTION (PHASE 1: Centralized write throttling)
+    // 6. COMMIT SELECTION
     // ============================================================
     commitSelection: function(invoice, method) {
         if (window.isHistoryView) return;
@@ -814,7 +852,6 @@ window.UI = {
             rec.regularReceivedTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
         }
         
-        // PHASE 1: Replaced multiple separate writes with a single debounced persist call.
         window.StorageEngine.persistAll();
 
         if (!wasDone && this._stats) {
@@ -842,7 +879,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 7. RENDER NEXT UP (Unchanged except _cardHtml)
+    // 7. RENDER NEXT UP
     // ============================================================
     renderNextUpPanel: function() {
         this._cardQueue = [];
@@ -894,7 +931,6 @@ window.UI = {
         this._fillQueue(); this._renderCardQueueFull();
     },
 
-    // PHASE 1 + UI: Added address to card
     _cardHtml: function(row) {
         const esc = window.Utils.escapeHtml; 
         const invId = esc(row.invoice);
@@ -929,7 +965,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 8. TABLE RENDER (PHASE 4: Virtual Scrolling)
+    // 8. TABLE RENDER
     // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
@@ -1015,7 +1051,7 @@ window.UI = {
             return true;
         });
         if (filtered.length === 0) { this._teardownVirtualRender(); tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; return; }
-        // PHASE 4: Use virtual scrolling if many rows and not in search
+
         if (filtered.length > this.VIRTUALIZE_THRESHOLD && !this._searchActive) {
             this._setupVirtualRender(filtered);
         } else {
@@ -1024,7 +1060,6 @@ window.UI = {
         }
     },
 
-    // PHASE 4: Virtual scrolling implementation
     _teardownVirtualRender: function() {
         if (this._vScrollHandler && this._vContainer) {
             this._vContainer.removeEventListener('scroll', this._vScrollHandler);
@@ -1036,10 +1071,8 @@ window.UI = {
 
     _setupVirtualRender: function(rows) {
         this._vFilteredRows = rows;
-        // Find the scrollable container
         const container = document.querySelector('.table-responsive');
         if (!container) {
-            // Fallback: render all rows if container not found
             this._teardownVirtualRender();
             const tbody = document.getElementById('table-body');
             if (tbody) {
@@ -1048,14 +1081,11 @@ window.UI = {
             return;
         }
         this._vContainer = container;
-        // Initial render
         this._renderVirtualWindow(container);
-        // Remove old handler
         if (this._vScrollHandler) {
             container.removeEventListener('scroll', this._vScrollHandler);
             this._vScrollHandler = null;
         }
-        // Add new handler
         let ticking = false;
         this._vScrollHandler = () => {
             if (ticking) return;
@@ -1078,17 +1108,14 @@ window.UI = {
         const rh = this.ROW_HEIGHT_ESTIMATE;
         const colspan = isRegular ? 10 : 8;
         
-        // Get container scroll position
         const scrollTop = container ? container.scrollTop : 0;
         const containerHeight = container ? container.clientHeight : window.innerHeight;
         
-        // Calculate visible range
         let start = Math.floor(scrollTop / rh) - this.BUFFER_ROWS;
         let end = Math.ceil((scrollTop + containerHeight) / rh) + this.BUFFER_ROWS;
         start = Math.max(0, Math.min(start, n - 1));
         end = Math.max(start, Math.min(end, n - 1));
         
-        // Build HTML with spacers
         let html = `<tr class="v-spacer" style="height:${start * rh}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
         for (let i = start; i <= end; i++) {
             html += this._buildRowHtml(rows[i], i + 1);
@@ -1113,7 +1140,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 9. RESTORE VIEW (Unchanged)
+    // 9. RESTORE VIEW
     // ============================================================
     restoreView: function() {
         console.log('🖥️ UI.restoreView() called');
@@ -1259,7 +1286,9 @@ window.UI = {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🖥️ DOM ready, initializing UI module...');
     window.UI.init();
-    window.ExcelEngine.init();
+    if (window.ExcelEngine && typeof window.ExcelEngine.init === 'function') {
+        window.ExcelEngine.init();
+    }
     
     const routeBox = document.getElementById('route-sequence');
     if (routeBox) {
