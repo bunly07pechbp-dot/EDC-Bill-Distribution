@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Simplified IN-Only Print Issues)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Clean IN-Only Print Issue Engine)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -285,12 +285,12 @@ window.AutomationEngine = {
             const sheet = workbook.addWorksheet('Re-Print Request');
             const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
-            sheet.mergeCells('A1:E1');
+            sheet.mergeCells('A1:C1');
             sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ (ខូច/មិនគ្រប់)';
             sheet.getCell('A1').font = { name: 'Khmer OS Muol Light', size: 13, bold: true };
             sheet.getCell('A1').alignment = { horizontal: 'center' };
 
-            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា', 'កំណត់ចំណាំ'];
+            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន'];
             const headerRow = sheet.getRow(3);
             headerRow.height = 25;
             headers.forEach((h, i) => {
@@ -307,24 +307,20 @@ window.AutomationEngine = {
                 const cells = [
                     idx + 1,
                     item.invoice,
-                    item.name,
-                    item.issueType,
-                    item.note || '-'
+                    item.name
                 ];
                 cells.forEach((val, cIdx) => {
                     const cell = row.getCell(cIdx + 1);
                     cell.value = val;
                     cell.font = { name: 'Khmer OS Battambang', size: 10 };
-                    cell.alignment = { horizontal: (cIdx === 2 || cIdx === 4) ? 'left' : 'center', vertical: 'middle' };
+                    cell.alignment = { horizontal: (cIdx === 2) ? 'left' : 'center', vertical: 'middle' };
                     cell.border = borderStyle;
                 });
             });
 
             sheet.getColumn(1).width = 6;
             sheet.getColumn(2).width = 18;
-            sheet.getColumn(3).width = 30;
-            sheet.getColumn(4).width = 20;
-            sheet.getColumn(5).width = 25;
+            sheet.getColumn(3).width = 32;
 
             workbook.xlsx.writeBuffer().then(buffer => {
                 const dateStr = new Date().toISOString().slice(0, 10);
