@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Includes Damaged/Missing Print Tracker)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Live Print Issues Tracker)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -21,11 +21,29 @@ window.AutomationEngine = {
         document.getElementById('btn-analyze-route')?.addEventListener('click', () => this.analyzeRouteEfficiency());
         document.getElementById('btn-detect-anomalies')?.addEventListener('click', () => this.detectAnomalies());
 
-        // Print Issues Events
+        // Print Issues Controls
         document.getElementById('btn-add-print-issue')?.addEventListener('click', () => this.addPrintIssue());
-        document.getElementById('input-issue-in')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this.addPrintIssue();
-        });
+        
+        const inInput = document.getElementById('input-issue-in');
+        if (inInput) {
+            inInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addPrintIssue();
+                }
+            });
+        }
+
+        const noteInput = document.getElementById('input-issue-note');
+        if (noteInput) {
+            noteInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addPrintIssue();
+                }
+            });
+        }
+
         document.getElementById('btn-export-print-issues')?.addEventListener('click', () => this.exportPrintIssues());
 
         document.getElementById('print-issues-tbody')?.addEventListener('click', (e) => {
@@ -71,11 +89,17 @@ window.AutomationEngine = {
 
         if (!canonicalIN) {
             window.Utils?.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
+            if (inInput) inInput.focus();
             return;
         }
 
-        // ស្វែងរកព័ត៌មានអតិថិជនពី Master Data
-        const matched = window.Utils?.findByInvoice(canonicalIN);
+        // ស្វែងរកព័ត៌មានអតិថិជនពី Master Data (Fast Lookup)
+        let matched = null;
+        if (window.masterDataIndex && window.masterDataIndex.has(canonicalIN)) {
+            matched = window.masterDataIndex.get(canonicalIN);
+        } else if (window.Utils?.findByInvoice) {
+            matched = window.Utils.findByInvoice(canonicalIN);
+        }
 
         const newRecord = {
             id: 'issue_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -85,16 +109,22 @@ window.AutomationEngine = {
             cabin: matched ? matched.cabin : (window.currentCabinGlobal || 'N/A'),
             issueType: issueType,
             note: note,
-            recordedAt: window.Utils?.formatDateTime(new Date()) || new Date().toLocaleString()
+            recordedAt: window.Utils?.formatDateTime(new Date()) || new Date().toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' })
         };
 
+        // បញ្ចូលទៅខាងលើគេក្នុងបញ្ជី
         this._printIssues.unshift(newRecord);
         this.savePrintIssues();
+        
+        // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗ
         this.renderPrintIssues();
 
-        inInput.value = '';
+        // សម្អាត Input & Focus ត្រឡប់មកវិញ
+        if (inInput) {
+            inInput.value = '';
+            inInput.focus();
+        }
         if (noteInput) noteInput.value = '';
-        inInput.focus();
 
         window.Utils?.showAlert(`✅ បានកត់ត្រាលេខ IN ${canonicalIN} (${issueType})!`);
     },
@@ -114,31 +144,43 @@ window.AutomationEngine = {
         const tbody = document.getElementById('print-issues-tbody');
         if (!tbody) return;
 
-        if (this._printIssues.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
+        if (!this._printIssues || this._printIssues.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="text-align:center; padding:24px; color:var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
             return;
         }
 
-        const esc = str => window.Utils?.escapeHtml(str) || String(str || '');
+        const esc = str => window.Utils?.escapeHtml ? window.Utils.escapeHtml(str) : String(str || '');
 
-        tbody.innerHTML = this._printIssues.map((item, idx) => `
-            <tr>
-                <td style="text-align: center;">${idx + 1}</td>
-                <td style="text-align: center; font-family: monospace; font-weight: bold; color: #2563eb;">${esc(item.invoice)}</td>
-                <td style="text-align: left; font-weight: 700; color: var(--text-name);">${esc(item.name)}</td>
-                <td style="text-align: center; color: #ea580c; font-weight: bold;">${esc(item.box)}</td>
-                <td style="text-align: center;"><span class="status-badge" style="background: #fee2e2; color: #dc2626;">${esc(item.issueType)}</span></td>
-                <td style="text-align: left; font-size: 12px; color: var(--text-secondary);">${esc(item.note || '-')}</td>
-                <td style="text-align: center; font-size: 11px; color: var(--text-muted);">${esc(item.recordedAt)}</td>
-                <td style="text-align: center;">
-                    <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 2px 8px; min-height: 28px; font-size: 11px; background: #dc2626; border-radius: 4px;">🗑️</button>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = this._printIssues.map((item, idx) => {
+            let badgeBg = '#fee2e2', badgeColor = '#dc2626';
+            if (item.issueType === 'ខូច/រហែកក្រដាស') { badgeBg = '#ffedd5'; badgeColor = '#ea580c'; }
+            else if (item.issueType === 'បោះពុម្ពស្ទួន') { badgeBg = '#fef3c7'; badgeColor = '#d97706'; }
+            else if (item.issueType === 'ផ្សេងៗ') { badgeBg = '#f1f5f9'; badgeColor = '#475569'; }
+
+            return `
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="text-align: center; font-weight: 600; color: var(--text-muted);">${idx + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px;">${esc(item.invoice)}</td>
+                    <td style="text-align: left; font-weight: 700; color: var(--text-name);">${esc(item.name)}</td>
+                    <td style="text-align: center; color: #ea580c; font-weight: 700;">${esc(item.box)}</td>
+                    <td style="text-align: center;">
+                        <span class="status-badge" style="background: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;">
+                            ${esc(item.issueType)}
+                        </span>
+                    </td>
+                    <td style="text-align: left; font-size: 12.5px; color: var(--text-secondary);">${esc(item.note || '-')}</td>
+                    <td style="text-align: center; font-size: 11px; color: var(--text-muted);">${esc(item.recordedAt)}</td>
+                    <td style="text-align: center;">
+                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     },
 
+    // 📤 Export Excel របាយការណ៍សុំបោះពុម្ពឡើងវិញ
     exportPrintIssues: function() {
-        if (this._printIssues.length === 0) {
+        if (!this._printIssues || this._printIssues.length === 0) {
             window.Utils?.showAlert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
             return;
         }
