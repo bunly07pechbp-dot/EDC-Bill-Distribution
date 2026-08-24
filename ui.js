@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (With Mode Selector & New Cycle)
+// 🖥️ UI MODULE - Premium Mobile-First (With Direct New Cycle & Mode Selector)
 // ================================================================
 
 window.UI = {
@@ -22,7 +22,6 @@ window.UI = {
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
-    // ---- Theme Management ----
     _getStoredTheme: function() {
         try {
             return localStorage.getItem('edc_theme_preference') || 'light';
@@ -82,6 +81,7 @@ window.UI = {
             cleanBtn.addEventListener('click', () => window.UI.cleanData());
         }
 
+        // --- ប៊ូតុងរៀបចំតារាងចែក (បើក Modal ឱ្យជ្រើសរើសជុំថ្មី ឬបន្ត) ---
         const processBtn = document.getElementById('btn-process-route');
         if (processBtn) {
             const newBtn = processBtn.cloneNode(true);
@@ -104,7 +104,7 @@ window.UI = {
                 try {
                     const result = window.RouteEngine.processSequence();
                     if (result && window.UI && typeof window.UI.enterFieldMode === 'function') {
-                        // 🆕 បង្ហាញផ្ទាំងជ្រើសរើសជុំថ្មី ឬបន្តជុំមុន
+                        // 🆕 បង្ហាញផ្ទាំង Modal ជម្រើសជុំថ្មី
                         window.UI.enterFieldMode(false);
                     }
                 } catch (err) {
@@ -112,6 +112,12 @@ window.UI = {
                     window.Utils.showAlert('❌ កំហុស: ' + err.message);
                 }
             });
+        }
+
+        // --- 🆕 ប៊ូតុងចាប់ផ្តើមជុំថ្មីផ្ទាល់លើ Action Bar ---
+        const newCycleBtn = document.getElementById('btn-start-new-cycle');
+        if (newCycleBtn) {
+            newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
         }
 
         const backSetupBtn = document.getElementById('btn-back-setup');
@@ -199,7 +205,7 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // Touch & Click Protection
+        // Smart Touch Protection for Tables
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
             let touchStartX = 0;
@@ -298,7 +304,7 @@ window.UI = {
             importJsonBtn.addEventListener('click', () => restoreFileInput.click());
         }
 
-        // Regular Fields listener
+        // Regular Fields
         document.addEventListener('change', function(e) {
             const target = e.target;
             if (target.classList.contains('regular-receiver-input') ||
@@ -336,7 +342,177 @@ window.UI = {
     },
 
     // ============================================================
-    // 2. ADD HOUSE UI
+    // 2. NEW CYCLE & MODE SELECTOR LOGIC
+    // ============================================================
+    startNewCyclePrompt: function() {
+        if (!window.masterData || window.masterData.length === 0) {
+            window.Utils.showAlert('⚠️ គ្មានទិន្នន័យ Master Data ទេ!');
+            return;
+        }
+
+        const totalDelivered = window.masterData.filter(r => window.Utils.isCompletedStatus(r.status)).length;
+        
+        const msg = `🔄 ចាប់ផ្តើមការចែកជុំថ្មី (New Cycle)\n\n` +
+                    `📌 ផ្ទះដែលធ្លាប់ចែករួច៖ ${totalDelivered} ផ្ទះ\n` +
+                    `⚠️ ស្ថានភាពផ្ទះទាំងអស់នឹងត្រូវបានកំណត់ទៅជា "មិនទាន់ចែក" ឡើងវិញ។\n\n` +
+                    `តើអ្នកចង់ចាប់ផ្តើមជុំថ្មីឥឡូវនេះមែនទេ?`;
+
+        if (confirm(msg)) {
+            // Reset status in Master Data
+            window.masterData.forEach(r => {
+                r.status = 'មិនទាន់ចែក';
+                r.method = '';
+                delete r.deliveredAt;
+                delete r.regularReceivedTime;
+            });
+
+            // Reset currentExportData
+            (window.currentExportData || []).forEach(r => {
+                r.status = 'មិនទាន់ចែក';
+                r.method = '';
+                delete r.deliveredAt;
+                delete r.regularReceivedTime;
+            });
+
+            // Reset active job delivery state
+            if (window.activeJobId && window.distributionJobs) {
+                const job = window.distributionJobs.find(j => j.id === window.activeJobId);
+                if (job) {
+                    job.deliveryState = {};
+                    delete job._cachedProgress;
+                    window.JobsEngine?.saveJobs?.();
+                    window.JobsEngine?.renderJobsList?.();
+                }
+            }
+
+            window.StorageEngine.saveMasterCache();
+            window.StorageEngine.saveSessionCache();
+            
+            if (document.getElementById('area-field')?.style.display === 'block') {
+                this.renderTable(window.currentExportData);
+                this.renderNextUpPanel();
+                this.updateProgressBar();
+            } else {
+                window.Utils.updateSystemStatus("🔄 បានចាប់ផ្តើមជុំថ្មី", window.masterData.length);
+            }
+
+            window.Utils.showAlert('✅ បានចាប់ផ្តើមជុំថ្មីដោយជោគជ័យ!');
+        }
+    },
+
+    enterFieldMode: function(skipSelector = false) {
+        if (window.activeJobId) {
+            const btn = document.getElementById('btn-back-top');
+            if (btn) { btn.style.display = 'flex'; btn.innerHTML = '⬅️ ត្រឡប់ទៅបញ្ជី Jobs'; }
+        }
+        document.getElementById('next-up-panel').style.display = 'block';
+        
+        const hasCompletedRows = (window.currentExportData || []).some(r => window.Utils.isCompletedStatus(r.status));
+        if (skipSelector || !hasCompletedRows) {
+            if (!window.currentExportData || window.currentExportData.length === 0) {
+                window.Utils.showAlert('⚠️ គ្មានទិន្នន័យផ្លូវចែក!');
+                return;
+            }
+            this._enterFieldModeReal();
+        } else {
+            this._showModeSelector();
+        }
+    },
+
+    _showModeSelector: function() { 
+        this._injectModeSelectorUI(); 
+        document.getElementById('mode-selector-overlay')?.classList.add('active'); 
+    },
+    
+    _closeModeSelector: function() { 
+        document.getElementById('mode-selector-overlay')?.classList.remove('active'); 
+    },
+
+    _injectModeSelectorUI: function() {
+        if (document.getElementById('mode-selector-overlay')) return;
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="mode-selector-overlay" class="method-picker-overlay" style="z-index: 9999;">
+                <div class="method-picker-sheet">
+                    <div class="method-picker-handle"></div>
+                    <div class="method-picker-header">
+                        <span>📋 ជ្រើសរើសរបៀបចែក</span>
+                        <button type="button" id="mode-selector-close" class="method-picker-close">✕</button>
+                    </div>
+                    <p class="method-picker-name" style="margin-bottom: 16px;">តើអ្នកចង់បន្តការចែកជុំមុន ឬចាប់ផ្តើមជុំថ្មី (Reset)?</p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <button type="button" id="mode-selector-continue" class="btn btn-primary" style="width:100%; min-height:48px;">🔄 បន្តការចែកជុំមុន (រក្សាទុកផ្ទះចែករួច)</button>
+                        <button type="button" id="mode-selector-reset" class="btn btn-warning" style="width:100%; min-height:48px;">🆕 ចាប់ផ្តើមជុំថ្មី (Reset ទៅមិនទាន់ចែក)</button>
+                        <button type="button" id="mode-selector-cancel" class="btn btn-slate" style="width:100%; min-height:44px;">បោះបង់</button>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('mode-selector-close')?.addEventListener('click', () => this._closeModeSelector());
+        document.getElementById('mode-selector-cancel')?.addEventListener('click', () => this._closeModeSelector());
+        
+        document.getElementById('mode-selector-continue')?.addEventListener('click', () => {
+            this._closeModeSelector();
+            this._enterFieldModeReal();
+        });
+
+        document.getElementById('mode-selector-reset')?.addEventListener('click', () => {
+            if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពគ្រប់ផ្ទះក្នុងផ្លូវនេះទៅជា "មិនទាន់ចែក" សម្រាប់ជុំថ្មីមែនទេ?')) {
+                (window.currentExportData || []).forEach(r => {
+                    r.status = 'មិនទាន់ចែក';
+                    r.method = '';
+                    delete r.deliveredAt;
+                    delete r.regularReceivedTime;
+                });
+
+                window.StorageEngine.saveMasterCache();
+                if (window.activeJobId && window.JobsEngine) {
+                    const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
+                    if (job) {
+                        job.deliveryState = {};
+                        delete job._cachedProgress;
+                        window.JobsEngine.saveJobs();
+                        window.JobsEngine.renderJobsList();
+                    }
+                }
+
+                this._closeModeSelector();
+                this._enterFieldModeReal();
+                window.Utils.showAlert('✅ បានចាប់ផ្តើមជុំថ្មីរួចរាល់!');
+            }
+        });
+    },
+
+    _enterFieldModeReal: function() {
+        window.isHistoryView = false; this.nextUpAnchorIndex = 0; this._searchActive = false;
+        document.getElementById('area-setup').style.display = 'none';
+        document.getElementById('block-history').style.display = 'none';
+        document.getElementById('block-stats').style.display = 'none';
+        document.getElementById('block-actions').style.display = 'none';
+        document.getElementById('area-field').style.display = 'block';
+        document.getElementById('next-up-panel').style.display = 'block';
+        
+        let cabin = window.currentCabinGlobal;
+        if (window.currentExportData.length > 0 && window.currentExportData[0].cabin) cabin = window.currentExportData[0].cabin;
+        document.getElementById('lbl-current-cabin').innerText = `📋 ផ្លូវជាក់ស្តែងកាប៊ីន៖ ${cabin}`;
+        
+        const jobMonthElement = document.getElementById('current-billing-month');
+        if (jobMonthElement) {
+            jobMonthElement.innerText = this._getSystemFormattedDate();
+        }
+
+        const sBox = document.getElementById('search-invoice');
+        if(sBox) sBox.value = '';
+        document.getElementById('chk-hide-done').checked = false;
+        this.renderTable(window.currentExportData);
+        window.Utils.updateProgressCounter();
+        this.renderNextUpPanel();
+        this.updateProgressBar();
+        window.StorageEngine.saveSessionCache();
+    },
+
+    // ============================================================
+    // 3. ADD HOUSE MODAL
     // ============================================================
     _initAddHouseUI: function() {
         const container = document.getElementById('area-field');
@@ -408,19 +584,19 @@ window.UI = {
             `;
             document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-            document.getElementById('add-house-close').addEventListener('click', () => this.closeAddHouseModal());
-            document.getElementById('add-house-skip-btn').addEventListener('click', () => {
+            document.getElementById('add-house-close')?.addEventListener('click', () => this.closeAddHouseModal());
+            document.getElementById('add-house-skip-btn')?.addEventListener('click', () => {
                 document.getElementById('add-house-step1').style.display = 'none';
                 document.getElementById('add-house-step2').style.display = 'block';
                 document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ដោយដៃ)';
             });
-            document.getElementById('add-house-search-btn').addEventListener('click', () => this._addHouseStep1());
-            document.getElementById('add-house-back-btn').addEventListener('click', () => {
+            document.getElementById('add-house-search-btn')?.addEventListener('click', () => this._addHouseStep1());
+            document.getElementById('add-house-back-btn')?.addEventListener('click', () => {
                 document.getElementById('add-house-step1').style.display = 'block';
                 document.getElementById('add-house-step2').style.display = 'none';
                 document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី';
             });
-            document.getElementById('add-house-save-btn').addEventListener('click', () => this._addHouseConfirm());
+            document.getElementById('add-house-save-btn')?.addEventListener('click', () => this._addHouseConfirm());
         }
     },
 
@@ -536,7 +712,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 3. CLEAR & SWITCH MODES
+    // 4. CLEAR & MODE SWITCHING
     // ============================================================
     clearAllData: function() {
         window.currentExportData = [];
@@ -618,124 +794,6 @@ window.UI = {
         }
 
         window.StorageEngine.loadHistoryList();
-        window.StorageEngine.saveSessionCache();
-    },
-
-    // ============================================================
-    // 4. ENTER FIELD MODE & MODE SELECTOR (ជម្រើសចែកជុំថ្មី)
-    // ============================================================
-    enterFieldMode: function(skipSelector = false) {
-        if (window.activeJobId) {
-            const btn = document.getElementById('btn-back-top');
-            if (btn) { btn.style.display = 'flex'; btn.innerHTML = '⬅️ ត្រឡប់ទៅបញ្ជី Jobs'; }
-        }
-        document.getElementById('next-up-panel').style.display = 'block';
-        
-        // 🆕 បើមានផ្ទះចែករួចខ្លះ បង្ហាញផ្ទាំង Mode Selector សួរនាំជុំថ្មី
-        const hasCompletedRows = (window.currentExportData || []).some(r => window.Utils.isCompletedStatus(r.status));
-        if (skipSelector || !hasCompletedRows) {
-            if (!window.currentExportData || window.currentExportData.length === 0) {
-                window.Utils.showAlert('⚠️ គ្មានទិន្នន័យផ្លូវចែក!');
-                return;
-            }
-            this._enterFieldModeReal();
-        } else {
-            this._showModeSelector();
-        }
-    },
-
-    _showModeSelector: function() { 
-        this._injectModeSelectorUI(); 
-        document.getElementById('mode-selector-overlay')?.classList.add('active'); 
-    },
-    
-    _closeModeSelector: function() { 
-        document.getElementById('mode-selector-overlay')?.classList.remove('active'); 
-    },
-
-    _injectModeSelectorUI: function() {
-        if (document.getElementById('mode-selector-overlay')) return;
-        document.body.insertAdjacentHTML('beforeend', `
-            <div id="mode-selector-overlay" class="method-picker-overlay" style="z-index: 9999;">
-                <div class="method-picker-sheet">
-                    <div class="method-picker-handle"></div>
-                    <div class="method-picker-header">
-                        <span>📋 ជ្រើសរើសរបៀបចែក</span>
-                        <button type="button" id="mode-selector-close" class="method-picker-close">✕</button>
-                    </div>
-                    <p class="method-picker-name" style="margin-bottom: 16px;">តើអ្នកចង់បន្តការចែកជុំមុន ឬចាប់ផ្តើមជុំថ្មី (Reset)?</p>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <button type="button" id="mode-selector-continue" class="btn btn-primary" style="width:100%; min-height:48px;">🔄 បន្តការចែកជុំមុន (រក្សាទុកផ្ទះចែករួច)</button>
-                        <button type="button" id="mode-selector-reset" class="btn btn-warning" style="width:100%; min-height:48px;">🆕 ចាប់ផ្តើមជុំថ្មី (Reset ទៅមិនទាន់ចែក)</button>
-                        <button type="button" id="mode-selector-cancel" class="btn btn-slate" style="width:100%; min-height:44px;">បោះបង់</button>
-                    </div>
-                </div>
-            </div>
-        `);
-
-        document.getElementById('mode-selector-close')?.addEventListener('click', () => this._closeModeSelector());
-        document.getElementById('mode-selector-cancel')?.addEventListener('click', () => this._closeModeSelector());
-        
-        // ជម្រើសទី ១: បន្តការចែកចាស់
-        document.getElementById('mode-selector-continue')?.addEventListener('click', () => {
-            this._closeModeSelector();
-            this._enterFieldModeReal();
-        });
-
-        // ជម្រើសទី ២: ចាប់ផ្តើមជុំថ្មី (Reset គ្រប់ជួរទៅជាមិនទាន់ចែក)
-        document.getElementById('mode-selector-reset')?.addEventListener('click', () => {
-            if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពគ្រប់ផ្ទះក្នុងផ្លូវនេះទៅជា "មិនទាន់ចែក" សម្រាប់ជុំថ្មីមែនទេ?')) {
-                (window.currentExportData || []).forEach(r => {
-                    r.status = 'មិនទាន់ចែក';
-                    r.method = '';
-                    delete r.deliveredAt;
-                    delete r.regularReceivedTime;
-                });
-
-                // Update ចូល MasterData និង Jobs
-                window.StorageEngine.saveMasterCache();
-                if (window.activeJobId && window.JobsEngine) {
-                    const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
-                    if (job) {
-                        job.deliveryState = {};
-                        delete job._cachedProgress;
-                        window.JobsEngine.saveJobs();
-                        window.JobsEngine.renderJobsList();
-                    }
-                }
-
-                this._closeModeSelector();
-                this._enterFieldModeReal();
-                window.Utils.showAlert('✅ បានចាប់ផ្តើមជុំថ្មីរួចរាល់!');
-            }
-        });
-    },
-
-    _enterFieldModeReal: function() {
-        window.isHistoryView = false; this.nextUpAnchorIndex = 0; this._searchActive = false;
-        document.getElementById('area-setup').style.display = 'none';
-        document.getElementById('block-history').style.display = 'none';
-        document.getElementById('block-stats').style.display = 'none';
-        document.getElementById('block-actions').style.display = 'none';
-        document.getElementById('area-field').style.display = 'block';
-        document.getElementById('next-up-panel').style.display = 'block';
-        
-        let cabin = window.currentCabinGlobal;
-        if (window.currentExportData.length > 0 && window.currentExportData[0].cabin) cabin = window.currentExportData[0].cabin;
-        document.getElementById('lbl-current-cabin').innerText = `📋 ផ្លូវជាក់ស្តែងកាប៊ីន៖ ${cabin}`;
-        
-        const jobMonthElement = document.getElementById('current-billing-month');
-        if (jobMonthElement) {
-            jobMonthElement.innerText = this._getSystemFormattedDate();
-        }
-
-        const sBox = document.getElementById('search-invoice');
-        if(sBox) sBox.value = '';
-        document.getElementById('chk-hide-done').checked = false;
-        this.renderTable(window.currentExportData);
-        window.Utils.updateProgressCounter();
-        this.renderNextUpPanel();
-        this.updateProgressBar();
         window.StorageEngine.saveSessionCache();
     },
 
@@ -914,6 +972,9 @@ window.UI = {
         this._renderCardQueueFull();
     },
 
+    // ============================================================
+    // 5. TABLE RENDERING
+    // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
         const isDone = row.status === 'បានចែករួចរាល់'; const isSuspended = row.status === 'ផ្អាកប្រើ';
