@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Deep Name-Matching Print Issue Engine)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Guaranteed Name Display & Clean UI)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -93,15 +93,14 @@ window.AutomationEngine = {
         }
     },
 
-    // ⚡ ស្វែងរកឈ្មោះអតិថិជនឱ្យបានត្រឹមត្រូវបំផុត (Deep Search Fallback)
+    // ⚡ ស្វែងរកឈ្មោះអតិថិជនឱ្យបានត្រឹមត្រូវបំផុត
     _findCustomerDetails: function(canonicalIN) {
         let name = '', box = 'N/A', cabin = window.currentCabinGlobal || 'N/A';
 
         const extractDetails = (rec) => {
             if (!rec) return false;
-            // ស្វែងរក Key ឈ្មោះគ្រប់ទម្រង់ដែលអាចមានក្នុង Excel/Database
             const foundName = rec.name || rec.customerName || rec.clientName || rec.ឈ្មោះ || rec.khmerName || rec.custName;
-            if (foundName) {
+            if (foundName && String(foundName).trim() !== '') {
                 name = String(foundName).trim();
                 box = rec.box || rec.boxNo || rec.ប្រអប់ || 'N/A';
                 cabin = rec.cabin || rec.កាប៊ីន || cabin;
@@ -110,19 +109,19 @@ window.AutomationEngine = {
             return false;
         };
 
-        // 1. ស្វែងរកតាម masterDataIndex
+        // 1. masterDataIndex
         if (window.masterDataIndex && typeof window.masterDataIndex.get === 'function') {
             const rec = window.masterDataIndex.get(canonicalIN);
             if (extractDetails(rec)) return { name, box, cabin };
         }
 
-        // 2. ស្វែងរកតាម Utils.findByInvoice
+        // 2. Utils.findByInvoice
         if (window.Utils && typeof window.Utils.findByInvoice === 'function') {
             const rec = window.Utils.findByInvoice(canonicalIN);
             if (extractDetails(rec)) return { name, box, cabin };
         }
 
-        // 3. ស្វែងរកផ្ទាល់ក្នុង window.masterData
+        // 3. window.masterData Direct Search
         const norm = (val) => {
             if (window.Utils && typeof window.Utils.normalizeIN === 'function') return window.Utils.normalizeIN(val);
             return String(val || '').replace(/[^\d\w]/g, '').trim();
@@ -136,7 +135,7 @@ window.AutomationEngine = {
             if (extractDetails(rec)) return { name, box, cabin };
         }
 
-        // 4. ស្វែងរកក្នុង currentExportData (បើកំពុងបើក Job)
+        // 4. window.currentExportData Search
         if (Array.isArray(window.currentExportData)) {
             const rec = window.currentExportData.find(r => {
                 const inv = r.invoice || r.in || r.inNumber || r.លេខIN;
@@ -152,13 +151,11 @@ window.AutomationEngine = {
         };
     },
 
-    // ⚡ មុខងារកត់ត្រារហ័ស
     addPrintIssue: function() {
         try {
             const inInput = document.getElementById('input-issue-in');
             const rawVal = inInput ? inInput.value.trim() : '';
             
-            // 1. Safe IN normalization
             let canonicalIN = '';
             if (window.Utils && typeof window.Utils.normalizeIN === 'function') {
                 canonicalIN = window.Utils.normalizeIN(rawVal);
@@ -166,7 +163,6 @@ window.AutomationEngine = {
                 canonicalIN = rawVal.replace(/[^\d\w]/g, '').trim();
             }
 
-            // 2. Validation
             if (!canonicalIN) {
                 if (window.Utils && typeof window.Utils.showAlert === 'function') {
                     window.Utils.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
@@ -177,7 +173,7 @@ window.AutomationEngine = {
                 return;
             }
 
-            // 3. 🛡️ DUPLICATE PROTECTION
+            // 🛡️ DUPLICATE PROTECTION
             const isDuplicate = this._printIssues.some(
                 item => item.invoice === canonicalIN
             );
@@ -192,7 +188,6 @@ window.AutomationEngine = {
                 return;
             }
 
-            // 4. ស្វែងរកឈ្មោះអតិថិជន (ធានាថាឃើញ ១០០%)
             const customer = this._findCustomerDetails(canonicalIN);
 
             const now = new Date();
@@ -209,14 +204,10 @@ window.AutomationEngine = {
                 recordedAt: timeStr
             };
 
-            // 5. បញ្ចូលទៅលើគេ និងរក្សាទុក
             this._printIssues.unshift(newRecord);
             this.savePrintIssues();
-
-            // 6. បង្ហាញលើ UI ភ្លាមៗ
             this.renderPrintIssues();
 
-            // 7. Clear input & re-focus
             if (inInput) {
                 inInput.value = '';
                 inInput.focus();
@@ -243,6 +234,7 @@ window.AutomationEngine = {
         }
     },
 
+    // ⚡ ធានាការបង្ហាញឈ្មោះឱ្យច្បាស់ ១០០% (High Contrast Visibility)
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
         const badge = document.getElementById('badge-issue-count');
@@ -260,7 +252,7 @@ window.AutomationEngine = {
         }
 
         const esc = (str) => {
-            if (!str) return '';
+            if (!str && str !== 0) return '';
             return String(str).replace(/[&<>"']/g, (c) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             }[c]));
@@ -269,13 +261,16 @@ window.AutomationEngine = {
         let html = '';
         for (let i = 0; i < list.length; i++) {
             const item = list[i];
+            const displayName = item.name ? esc(item.name) : 'គ្មានឈ្មោះ';
+
             html += `
                 <tr style="border-bottom: 1px solid var(--border, #e2e8f0);">
-                    <td style="text-align: center; font-weight: 600; color: var(--text-muted, #64748b); padding: 10px 4px;">${i + 1}</td>
-                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary, #2563eb); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
-                    <td style="text-align: left; font-weight: 700; color: var(--text-name, #1e293b); padding: 10px 8px;">${esc(item.name)}</td>
-                    <td style="text-align: center; padding: 10px 4px;">
-                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                    <td style="text-align: center; font-weight: 600; color: var(--text-muted, #64748b); padding: 12px 6px;">${i + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary, #2563eb); font-size: 14.5px; padding: 12px 6px;">${esc(item.invoice)}</td>
+                    <!-- 🔧 FIX: ធានាពណ៌អក្សរច្បាស់ មិនបាត់បាំង -->
+                    <td style="text-align: left; font-weight: 700; color: var(--text, #0f172a); font-size: 14px; padding: 12px 10px;">${displayName}</td>
+                    <td style="text-align: center; padding: 12px 6px;">
+                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 10px; min-height: 30px; font-size: 12px; background: #ef4444; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
                     </td>
                 </tr>
             `;
@@ -354,9 +349,6 @@ window.AutomationEngine = {
         }
     },
 
-    // ============================================================
-    // 🧠 AI & ROUTE ANALYTICS
-    // ============================================================
     _showResult: function(title, content, isError = false) {
         const results = document.getElementById('analytics-results');
         const contentEl = document.getElementById('analytics-result-content');
