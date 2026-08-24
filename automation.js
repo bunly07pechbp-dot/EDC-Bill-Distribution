@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & PRINT ISSUES ENGINE (Bulletproof & Self-Contained)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Isolated & Bulletproof Print Issues)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -7,8 +7,15 @@ window.AutomationEngine = {
     PRINT_ISSUES_KEY: 'EDC_PRINT_ISSUES',
     _printIssues: [],
 
+    // 🔧 FIX: Robust initialization with safe DOM check and duplicate prevention
     init: function() {
-        console.log('🤖 AutomationEngine.init() starting...');
+        if (this._initialized) {
+            this.bindPrintIssueEvents(); // 🔧 FIX: Re-bind in case DOM re-rendered
+            this.renderPrintIssues();
+            return;
+        }
+
+        console.log('🤖 AutomationEngine initializing...');
         this.loadPrintIssues();
         this.bindEvents();
         this.renderPrintIssues();
@@ -16,22 +23,25 @@ window.AutomationEngine = {
         console.log('✅ AutomationEngine initialized successfully.');
     },
 
+    // 🔧 FIX: Separated and idempotent event bindings
     bindEvents: function() {
-        // AI Analytics Buttons
         document.getElementById('btn-auto-tag-digital')?.addEventListener('click', () => this.autoTagDigitalBills());
         document.getElementById('btn-analyze-route')?.addEventListener('click', () => this.analyzeRouteEfficiency());
         document.getElementById('btn-detect-anomalies')?.addEventListener('click', () => this.detectAnomalies());
 
-        // Add Issue Button
+        this.bindPrintIssueEvents();
+    },
+
+    // 🔧 FIX: Direct, bulletproof event binding for Print Issues
+    bindPrintIssueEvents: function() {
         const addBtn = document.getElementById('btn-add-print-issue');
         if (addBtn) {
             addBtn.onclick = (e) => {
-                e.preventDefault();
+                if (e) e.preventDefault();
                 this.addPrintIssue();
             };
         }
 
-        // Enter Key for Input
         const inInput = document.getElementById('input-issue-in');
         if (inInput) {
             inInput.onkeydown = (e) => {
@@ -52,30 +62,46 @@ window.AutomationEngine = {
             };
         }
 
-        // Export Button
         const exportBtn = document.getElementById('btn-export-print-issues');
         if (exportBtn) {
             exportBtn.onclick = (e) => {
-                e.preventDefault();
+                if (e) e.preventDefault();
                 this.exportPrintIssues();
+            };
+        }
+
+        const tbody = document.getElementById('print-issues-tbody');
+        if (tbody) {
+            tbody.onclick = (e) => {
+                const delBtn = e.target.closest('.btn-delete-issue');
+                if (delBtn && delBtn.dataset.id) {
+                    this.deletePrintIssue(delBtn.dataset.id);
+                }
             };
         }
     },
 
+    // 🔧 FIX: Safe load from localStorage EDC_PRINT_ISSUES
     loadPrintIssues: function() {
         try {
             const raw = localStorage.getItem(this.PRINT_ISSUES_KEY);
             this._printIssues = raw ? JSON.parse(raw) : [];
-            if (!Array.isArray(this._printIssues)) this._printIssues = [];
+            if (!Array.isArray(this._printIssues)) {
+                this._printIssues = [];
+            }
         } catch (e) {
-            console.error('❌ Failed to load print issues from localStorage:', e);
+            console.error('❌ Failed to parse print issues from localStorage:', e);
             this._printIssues = [];
         }
+        return this._printIssues;
     },
 
+    // 🔧 FIX: Save strictly to localStorage EDC_PRINT_ISSUES + Safe DBEngine fallback call
     savePrintIssues: function() {
         try {
             localStorage.setItem(this.PRINT_ISSUES_KEY, JSON.stringify(this._printIssues));
+            
+            // 🔧 FIX: Use existing DBEngine API without modifying DBEngine
             if (window.DBEngine && typeof window.DBEngine.saveSetting === 'function') {
                 window.DBEngine.saveSetting('printIssues', this._printIssues);
             }
@@ -84,7 +110,7 @@ window.AutomationEngine = {
         }
     },
 
-    // ⚡ មុខងារកត់ត្រា (ដំណើរការភ្លាមៗ ១០០%)
+    // 🔧 FIX: Complete, safe implementation of addPrintIssue()
     addPrintIssue: function() {
         try {
             const inInput = document.getElementById('input-issue-in');
@@ -93,16 +119,21 @@ window.AutomationEngine = {
 
             const rawVal = inInput ? inInput.value.trim() : '';
             
-            // Clean/Normalize IN Number
-            let canonicalIN = rawVal;
+            // 1. Safe IN normalization
+            let canonicalIN = '';
             if (window.Utils && typeof window.Utils.normalizeIN === 'function') {
                 canonicalIN = window.Utils.normalizeIN(rawVal);
             } else {
                 canonicalIN = rawVal.replace(/[^\d\w]/g, '').trim();
             }
 
+            // 2. Validation
             if (!canonicalIN) {
-                alert('⚠️ សូមបញ្ចូលលេខ IN!');
+                if (window.Utils && typeof window.Utils.showAlert === 'function') {
+                    window.Utils.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
+                } else {
+                    alert('⚠️ សូមបញ្ចូលលេខ IN!');
+                }
                 if (inInput) inInput.focus();
                 return;
             }
@@ -110,33 +141,53 @@ window.AutomationEngine = {
             const issueType = typeSelect ? typeSelect.value : 'បោះពុម្ពមិនគ្រប់';
             const note = noteInput ? noteInput.value.trim() : '';
 
-            // ស្វែងរកព័ត៌មានអតិថិជនពី Master Data
+            // 3. 🛡️ DUPLICATE PROTECTION: Check if exact same IN + issueType already exists
+            const isDuplicate = this._printIssues.some(
+                item => item.invoice === canonicalIN && item.issueType === issueType
+            );
+
+            if (isDuplicate) {
+                if (window.Utils && typeof window.Utils.showAlert === 'function') {
+                    window.Utils.showAlert('⚠️ IN នេះត្រូវបានកត់ត្រារួចហើយ');
+                } else {
+                    alert('⚠️ IN នេះត្រូវបានកត់ត្រារួចហើយ');
+                }
+                if (inInput) inInput.focus();
+                return;
+            }
+
+            // 4. Safe Master Data Lookup (Priority: masterDataIndex -> masterData -> Fallback)
             let matchedName = 'ក្រៅ Master Data';
             let matchedBox = 'N/A';
             let matchedCabin = window.currentCabinGlobal || 'N/A';
 
-            if (window.masterDataIndex && window.masterDataIndex.has(canonicalIN)) {
-                const rec = window.masterDataIndex.get(canonicalIN);
-                if (rec) {
-                    matchedName = rec.name || matchedName;
-                    matchedBox = rec.box || matchedBox;
-                    matchedCabin = rec.cabin || matchedCabin;
+            try {
+                if (window.masterDataIndex && typeof window.masterDataIndex.get === 'function' && window.masterDataIndex.has(canonicalIN)) {
+                    const rec = window.masterDataIndex.get(canonicalIN);
+                    if (rec) {
+                        matchedName = rec.name || matchedName;
+                        matchedBox = rec.box || matchedBox;
+                        matchedCabin = rec.cabin || matchedCabin;
+                    }
+                } else if (Array.isArray(window.masterData)) {
+                    const normFn = window.Utils?.normalizeIN || (v => String(v || '').trim());
+                    const rec = window.masterData.find(r => normFn(r.invoice) === canonicalIN);
+                    if (rec) {
+                        matchedName = rec.name || matchedName;
+                        matchedBox = rec.box || matchedBox;
+                        matchedCabin = rec.cabin || matchedCabin;
+                    }
                 }
-            } else if (Array.isArray(window.masterData)) {
-                const rec = window.masterData.find(r => String(r.invoice || '').trim() === canonicalIN);
-                if (rec) {
-                    matchedName = rec.name || matchedName;
-                    matchedBox = rec.box || matchedBox;
-                    matchedCabin = rec.cabin || matchedCabin;
-                }
+            } catch (err) {
+                console.warn('⚠️ Non-critical lookup error:', err);
             }
 
-            // Time string
+            // 5. Create new Record
             const now = new Date();
-            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate()}/${now.getMonth() + 1}`;
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
             const newRecord = {
-                id: 'issue_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                id: 'issue_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
                 invoice: canonicalIN,
                 name: matchedName,
                 box: matchedBox,
@@ -146,24 +197,27 @@ window.AutomationEngine = {
                 recordedAt: timeStr
             };
 
-            // បញ្ចូលទៅខាងលើគេបង្អស់
+            // 6. Insert at top
             this._printIssues.unshift(newRecord);
+
+            // 7. Save to storage
             this.savePrintIssues();
-            
-            // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗ
+
+            // 8. Immediate UI update
             this.renderPrintIssues();
 
-            // Clear inputs
+            // 9. Clear inputs and re-focus
             if (inInput) {
                 inInput.value = '';
                 inInput.focus();
             }
-            if (noteInput) noteInput.value = '';
+            if (noteInput) {
+                noteInput.value = '';
+            }
 
+            // 10. Success notification
             if (window.Utils && typeof window.Utils.showAlert === 'function') {
                 window.Utils.showAlert(`✅ បានកត់ត្រា៖ IN ${canonicalIN} (${matchedName})`);
-            } else {
-                console.log(`✅ Recorded: IN ${canonicalIN}`);
             }
 
         } catch (err) {
@@ -172,6 +226,7 @@ window.AutomationEngine = {
         }
     },
 
+    // 🔧 FIX: Safe delete with immediate UI and storage sync
     deletePrintIssue: function(id) {
         const item = this._printIssues.find(i => i.id === id);
         if (!item) return;
@@ -183,19 +238,20 @@ window.AutomationEngine = {
         }
     },
 
-    // ⚡ Render ចេញមកលើអេក្រង់ផ្ទាល់ (បង្ហាញតែ ល.រ, លេខ IN, ឈ្មោះអតិថិជន និងប៊ូតុងលុប)
+    // 🔧 FIX: Lightweight and fast table renderer
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
-        const badgeCount = document.getElementById('badge-issue-count');
-        
-        if (badgeCount) {
-            badgeCount.innerText = `${this._printIssues.length} ផ្ទះ`;
+        const badge = document.getElementById('badge-issue-count');
+        const list = this._printIssues || [];
+
+        if (badge) {
+            badge.innerText = `${list.length} ផ្ទះ`;
         }
 
         if (!tbody) return;
 
-        if (!this._printIssues || this._printIssues.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-state" style="text-align:center; padding:24px; color:var(--text-muted, #64748b);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
             return;
         }
 
@@ -207,15 +263,15 @@ window.AutomationEngine = {
         };
 
         let html = '';
-        for (let i = 0; i < this._printIssues.length; i++) {
-            const item = this._printIssues[i];
+        for (let i = 0; i < list.length; i++) {
+            const item = list[i];
             html += `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="text-align: center; font-weight: 600; color: var(--text-muted); padding: 10px 4px;">${i + 1}</td>
-                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
-                    <td style="text-align: left; font-weight: 700; color: var(--text-name); padding: 10px 8px;">${esc(item.name)}</td>
+                <tr style="border-bottom: 1px solid var(--border, #e2e8f0);">
+                    <td style="text-align: center; font-weight: 600; color: var(--text-muted, #64748b); padding: 10px 4px;">${i + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary, #2563eb); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
+                    <td style="text-align: left; font-weight: 700; color: var(--text-name, #1e293b); padding: 10px 8px;">${esc(item.name)}</td>
                     <td style="text-align: center; padding: 10px 4px;">
-                        <button type="button" onclick="window.AutomationEngine.deletePrintIssue('${item.id}')" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
                     </td>
                 </tr>
             `;
@@ -224,9 +280,14 @@ window.AutomationEngine = {
         tbody.innerHTML = html;
     },
 
+    // 🔧 FIX: Export feature working seamlessly with ExcelJS
     exportPrintIssues: function() {
         if (!this._printIssues || this._printIssues.length === 0) {
-            alert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            if (window.Utils && typeof window.Utils.showAlert === 'function') {
+                window.Utils.showAlert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            } else {
+                alert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            }
             return;
         }
 
@@ -240,12 +301,12 @@ window.AutomationEngine = {
             const sheet = workbook.addWorksheet('Re-Print Request');
             const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
-            sheet.mergeCells('A1:D1');
-            sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ';
+            sheet.mergeCells('A1:E1');
+            sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ (ខូច/មិនគ្រប់)';
             sheet.getCell('A1').font = { name: 'Khmer OS Muol Light', size: 13, bold: true };
             sheet.getCell('A1').alignment = { horizontal: 'center' };
 
-            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា'];
+            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា', 'កំណត់ចំណាំ'];
             const headerRow = sheet.getRow(3);
             headerRow.height = 25;
             headers.forEach((h, i) => {
@@ -263,37 +324,40 @@ window.AutomationEngine = {
                     idx + 1,
                     item.invoice,
                     item.name,
-                    item.issueType
+                    item.issueType,
+                    item.note || '-'
                 ];
                 cells.forEach((val, cIdx) => {
                     const cell = row.getCell(cIdx + 1);
                     cell.value = val;
                     cell.font = { name: 'Khmer OS Battambang', size: 10 };
-                    cell.alignment = { horizontal: (cIdx === 2) ? 'left' : 'center', vertical: 'middle' };
+                    cell.alignment = { horizontal: (cIdx === 2 || cIdx === 4) ? 'left' : 'center', vertical: 'middle' };
                     cell.border = borderStyle;
                 });
             });
 
             sheet.getColumn(1).width = 6;
             sheet.getColumn(2).width = 18;
-            sheet.getColumn(3).width = 32;
+            sheet.getColumn(3).width = 30;
             sheet.getColumn(4).width = 20;
+            sheet.getColumn(5).width = 25;
 
             workbook.xlsx.writeBuffer().then(buffer => {
                 const dateStr = new Date().toISOString().slice(0, 10);
                 saveAs(new Blob([buffer]), `RePrint_Request_${dateStr}.xlsx`);
                 if (window.Utils && typeof window.Utils.showAlert === 'function') {
                     window.Utils.showAlert('✅ Export របាយការណ៍សុំបោះពុម្ពរួចរាល់!');
-                } else {
-                    alert('✅ Export របាយការណ៍សុំបោះពុម្ពរួចរាល់!');
                 }
             });
         } catch (err) {
-            console.error('❌ Export error:', err);
+            console.error('❌ Export print issues error:', err);
             alert('❌ Export បរាជ័យ៖ ' + err.message);
         }
     },
 
+    // ============================================================
+    // 🧠 AI & ROUTE ANALYTICS (Preserved 100%)
+    // ============================================================
     _showResult: function(title, content, isError = false) {
         const results = document.getElementById('analytics-results');
         const contentEl = document.getElementById('analytics-result-content');
@@ -386,7 +450,7 @@ window.AutomationEngine = {
             }
         });
 
-        if (taggedCount > 0 && window.StorageEngine) {
+        if (taggedCount > 0 && window.StorageEngine && typeof window.StorageEngine.saveMasterCache === 'function') {
             window.StorageEngine.saveMasterCache();
             window.StorageEngine.persistAll();
         }
@@ -403,7 +467,7 @@ ${taggedCount > 0 ? '💾 ទិន្នន័យត្រូវបានរក
     }
 };
 
-// Auto Initialize
+// 🔧 FIX: Self-healing bootstrap execution
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => window.AutomationEngine.init());
 } else {
