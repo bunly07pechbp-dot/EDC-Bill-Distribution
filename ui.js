@@ -199,14 +199,38 @@ window.UI = {
         }
 
         // ============================================================
-        // 🛠️ FIX: Safe Click Listener Only (លុប Touchstart ចោល ដើម្បីកុំឱ្យលោតពេល Scroll)
+        // 🛠️ SMART TOUCH & SCROLL GUARD (ការពារកុំឱ្យលោតពេល Scroll)
         // ============================================================
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isScrolling = false;
+
+            tableBody.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    isScrolling = false;
+                }
+            }, { passive: true });
+
+            tableBody.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1) {
+                    const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+                    const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+                    // ប្រសិនបើម្រាមដៃរំកិលលើសពី 8px ចាត់ទុកថាជា Scroll (មិនមែន Click ទេ)
+                    if (deltaX > 8 || deltaY > 8) {
+                        isScrolling = true;
+                    }
+                }
+            }, { passive: true });
+
             tableBody.addEventListener('click', (e) => {
+                // បើកំពុងអូស Scroll ឬប៉ះលើប្រអប់ Input មិនត្រូវបើក Method Picker ឡើយ
+                if (isScrolling) return;
                 if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) return;
-                
-                // បើក Method Picker តែពេលចុចលើ Row ឬ Button វិធីចែកប៉ុណ្ណោះ
+
                 const row = e.target.closest('tr[data-invoice]');
                 if (row) {
                     const invoice = row.dataset.invoice;
