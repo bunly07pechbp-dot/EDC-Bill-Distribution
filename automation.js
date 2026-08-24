@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Isolated & Bulletproof Print Issues)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Simplified IN-Only Print Issues)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -10,7 +10,7 @@ window.AutomationEngine = {
     // 🔧 FIX: Robust initialization with safe DOM check and duplicate prevention
     init: function() {
         if (this._initialized) {
-            this.bindPrintIssueEvents(); // 🔧 FIX: Re-bind in case DOM re-rendered
+            this.bindPrintIssueEvents();
             this.renderPrintIssues();
             return;
         }
@@ -45,16 +45,6 @@ window.AutomationEngine = {
         const inInput = document.getElementById('input-issue-in');
         if (inInput) {
             inInput.onkeydown = (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.addPrintIssue();
-                }
-            };
-        }
-
-        const noteInput = document.getElementById('input-issue-note');
-        if (noteInput) {
-            noteInput.onkeydown = (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     this.addPrintIssue();
@@ -110,13 +100,10 @@ window.AutomationEngine = {
         }
     },
 
-    // 🔧 FIX: Complete, safe implementation of addPrintIssue()
+    // 🔧 FIX: ⚡ មុខងារកត់ត្រារហ័ស (សល់តែលេខ IN និងប៊ូតុងកត់ត្រា)
     addPrintIssue: function() {
         try {
             const inInput = document.getElementById('input-issue-in');
-            const typeSelect = document.getElementById('select-issue-type');
-            const noteInput = document.getElementById('input-issue-note');
-
             const rawVal = inInput ? inInput.value.trim() : '';
             
             // 1. Safe IN normalization
@@ -138,12 +125,12 @@ window.AutomationEngine = {
                 return;
             }
 
-            const issueType = typeSelect ? typeSelect.value : 'បោះពុម្ពមិនគ្រប់';
-            const note = noteInput ? noteInput.value.trim() : '';
+            const issueType = 'ខូច/មិនគ្រប់';
+            const note = '';
 
-            // 3. 🛡️ DUPLICATE PROTECTION: Check if exact same IN + issueType already exists
+            // 3. 🛡️ DUPLICATE PROTECTION: Check if exact same IN already exists
             const isDuplicate = this._printIssues.some(
-                item => item.invoice === canonicalIN && item.issueType === issueType
+                item => item.invoice === canonicalIN
             );
 
             if (isDuplicate) {
@@ -211,9 +198,6 @@ window.AutomationEngine = {
                 inInput.value = '';
                 inInput.focus();
             }
-            if (noteInput) {
-                noteInput.value = '';
-            }
 
             // 10. Success notification
             if (window.Utils && typeof window.Utils.showAlert === 'function') {
@@ -238,7 +222,7 @@ window.AutomationEngine = {
         }
     },
 
-    // 🔧 FIX: Lightweight and fast table renderer
+    // 🔧 FIX: Lightweight table renderer (Shows: No, IN, Customer Name, Delete Button)
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
         const badge = document.getElementById('badge-issue-count');
