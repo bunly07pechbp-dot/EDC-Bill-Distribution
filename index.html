@@ -117,7 +117,6 @@
         <!-- Quick Actions -->
         <div class="action-bar" id="block-actions" style="display: flex; flex-direction: column; gap: 10px; background: none; border: none; padding: 0;">
             
-            <!-- Safe iOS Overlay Layout for Excel Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" multiple style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-import-trigger" style="min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
@@ -133,7 +132,6 @@
                 ▶ Continue Job (Sorting)
             </button>
 
-            <!-- ប៊ូតុងចាប់ផ្តើមចែកជុំថ្មី (New Cycle) -->
             <button class="btn" id="btn-start-new-cycle" style="background:#ea580c; min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
                 🔄 ចាប់ផ្តើមចែកជុំថ្មី (New Cycle)
             </button>
@@ -147,7 +145,6 @@
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px;">
                         <button class="btn" id="btn-export-json" style="background:#0d9488; min-height: 46px; font-size: 13px;">💾 Backup (Export)</button>
                         
-                        <!-- Safe iOS Overlay Layout for JSON Input -->
                         <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                             <input type="file" id="restore-file-input" accept=".json" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                             <button class="btn" id="btn-import-json" style="background:#475569; min-height: 46px; font-size: 13px; width: 100%;">📂 Restore (Import)</button>
@@ -175,7 +172,6 @@
     <!-- JOBS SCREEN -->
     <div class="jobs-screen" id="area-jobs" style="display:none;">
         <div class="jobs-import-bar" style="margin-bottom: 12px;">
-            <!-- Safe iOS Overlay Layout for Workbook Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="jobs-file-input" accept=".xlsx, .xls" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-jobs-import-trigger" style="width: 100%;">📥 នាំចូល Workbook (Multi-sheet)</button>
@@ -184,7 +180,6 @@
         </div>
         
         <div class="jobs-import-bar" style="margin-bottom: 16px;">
-            <!-- Safe iOS Overlay Layout for PDF Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="digitalbill-file-input" accept=".pdf" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-digitalbill-import-trigger" style="background:#7c3aed; width: 100%;">📲 នាំចូល Digital Bill (PDF)</button>
@@ -211,7 +206,7 @@
             <p style="color: var(--text-secondary); font-size: 14px;">វិភាគទិន្នន័យ និងប្រើប្រាស់មុខងារស្វ័យប្រវត្តិកម្ម</p>
         </div>
 
-        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស (Live Display: បង្ហាញតែលេខ IN និង ឈ្មោះអតិថិជន) -->
+        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស (Direct Live System) -->
         <div class="analytics-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                 <div>
@@ -221,12 +216,12 @@
                     </h3>
                     <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0;">កត់ត្រាលេខ IN ដែលបោះពុម្ពមិនគ្រប់ ឬខូច ដើម្បីស្នើសុំបោះពុម្ពឡើងវិញ</p>
                 </div>
-                <button type="button" class="btn btn-warning" id="btn-export-print-issues" style="font-size: 13px; padding: 8px 16px; min-height: 40px;">
+                <button type="button" class="btn btn-warning" onclick="doExportPrintIssues()" style="font-size: 13px; padding: 8px 16px; min-height: 40px;">
                     📤 Export បញ្ជីសុំបោះពុម្ពឡើងវិញ
                 </button>
             </div>
 
-            <!-- Form បញ្ចូលរហ័ស (ភ្ជាប់ onclick ផ្ទាល់) -->
+            <!-- Form បញ្ចូលរហ័ស -->
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; background: var(--bg); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
                 <input type="text" id="input-issue-in" placeholder="លេខ IN *" style="flex: 1; min-width: 130px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text); font-weight: 700;">
                 <select id="select-issue-type" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text); font-weight: 600;">
@@ -236,7 +231,8 @@
                     <option value="ផ្សេងៗ">⚠️ ផ្សេងៗ</option>
                 </select>
                 <input type="text" id="input-issue-note" placeholder="កំណត់ចំណាំ (បើមាន)..." style="flex: 1.5; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text);">
-                <button type="button" class="btn btn-primary" id="btn-add-print-issue" onclick="window.AutomationEngine.addPrintIssue()" style="min-height: 44px; padding: 8px 20px; font-size: 14px;">
+                
+                <button type="button" class="btn btn-primary" onclick="doAddPrintIssue()" style="min-height: 44px; padding: 8px 20px; font-size: 14px;">
                     ➕ កត់ត្រា
                 </button>
             </div>
@@ -405,6 +401,190 @@
 <script src="automation.js?v=20"></script>
 
 <!-- ============================================================
+   DIRECT PRINT ISSUES CONTROLLER (Guaranteed Execution)
+   ============================================================ -->
+<script>
+    function getStoredPrintIssues() {
+        try {
+            const raw = localStorage.getItem('EDC_PRINT_ISSUES');
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveStoredPrintIssues(list) {
+        try {
+            localStorage.setItem('EDC_PRINT_ISSUES', JSON.stringify(list));
+        } catch (e) {}
+    }
+
+    function renderDirectPrintIssues() {
+        const tbody = document.getElementById('print-issues-tbody');
+        const badge = document.getElementById('badge-issue-count');
+        const list = getStoredPrintIssues();
+
+        if (badge) badge.innerText = `${list.length} ផ្ទះ`;
+        if (!tbody) return;
+
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
+            return;
+        }
+
+        const esc = (str) => String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        tbody.innerHTML = list.map((item, idx) => `
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="text-align: center; font-weight: 600; color: var(--text-muted); padding: 10px 4px;">${idx + 1}</td>
+                <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
+                <td style="text-align: left; font-weight: 700; color: var(--text-name); padding: 10px 8px;">${esc(item.name)}</td>
+                <td style="text-align: center; padding: 10px 4px;">
+                    <button type="button" onclick="doDeletePrintIssue('${item.id}')" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function doAddPrintIssue() {
+        const inInput = document.getElementById('input-issue-in');
+        const typeSelect = document.getElementById('select-issue-type');
+        const noteInput = document.getElementById('input-issue-note');
+
+        const rawVal = inInput ? inInput.value.trim() : '';
+        const canonicalIN = rawVal.replace(/[^\d\w]/g, '').trim();
+
+        if (!canonicalIN) {
+            alert('⚠️ សូមបញ្ចូលលេខ IN!');
+            if (inInput) inInput.focus();
+            return;
+        }
+
+        let matchedName = 'ក្រៅ Master Data';
+        let matchedBox = 'N/A';
+        let matchedCabin = window.currentCabinGlobal || 'N/A';
+
+        if (window.masterDataIndex && window.masterDataIndex.has(canonicalIN)) {
+            const rec = window.masterDataIndex.get(canonicalIN);
+            if (rec) {
+                matchedName = rec.name || matchedName;
+                matchedBox = rec.box || matchedBox;
+                matchedCabin = rec.cabin || matchedCabin;
+            }
+        } else if (Array.isArray(window.masterData)) {
+            const rec = window.masterData.find(r => String(r.invoice || '').trim() === canonicalIN);
+            if (rec) {
+                matchedName = rec.name || matchedName;
+                matchedBox = rec.box || matchedBox;
+                matchedCabin = rec.cabin || matchedCabin;
+            }
+        }
+
+        const list = getStoredPrintIssues();
+        list.unshift({
+            id: 'issue_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            invoice: canonicalIN,
+            name: matchedName,
+            box: matchedBox,
+            cabin: matchedCabin,
+            issueType: typeSelect ? typeSelect.value : 'បោះពុម្ពមិនគ្រប់',
+            note: noteInput ? noteInput.value.trim() : '',
+            recordedAt: new Date().toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' })
+        });
+
+        saveStoredPrintIssues(list);
+        renderDirectPrintIssues();
+
+        if (inInput) { inInput.value = ''; inInput.focus(); }
+        if (noteInput) noteInput.value = '';
+    }
+
+    function doDeletePrintIssue(id) {
+        let list = getStoredPrintIssues();
+        const item = list.find(i => i.id === id);
+        if (!item) return;
+
+        if (confirm(`🗑️ លុបលេខ IN: ${item.invoice} (${item.name}) ចេញពីបញ្ជី?`)) {
+            list = list.filter(i => i.id !== id);
+            saveStoredPrintIssues(list);
+            renderDirectPrintIssues();
+        }
+    }
+
+    function doExportPrintIssues() {
+        const list = getStoredPrintIssues();
+        if (list.length === 0) {
+            alert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            return;
+        }
+
+        if (typeof ExcelJS === 'undefined') {
+            alert('❌ Library ExcelJS មិនត្រូវបានផ្ទុក!');
+            return;
+        }
+
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('Re-Print Request');
+            const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+
+            sheet.mergeCells('A1:D1');
+            sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ';
+            sheet.getCell('A1').font = { name: 'Khmer OS Muol Light', size: 13, bold: true };
+            sheet.getCell('A1').alignment = { horizontal: 'center' };
+
+            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា'];
+            const headerRow = sheet.getRow(3);
+            headerRow.height = 25;
+            headers.forEach((h, i) => {
+                const cell = headerRow.getCell(i + 1);
+                cell.value = h;
+                cell.font = { name: 'Khmer OS Battambang', size: 10, bold: true };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+                cell.border = borderStyle;
+            });
+
+            list.forEach((item, idx) => {
+                const row = sheet.getRow(idx + 4);
+                const cells = [idx + 1, item.invoice, item.name, item.issueType];
+                cells.forEach((val, cIdx) => {
+                    const cell = row.getCell(cIdx + 1);
+                    cell.value = val;
+                    cell.font = { name: 'Khmer OS Battambang', size: 10 };
+                    cell.alignment = { horizontal: (cIdx === 2) ? 'left' : 'center', vertical: 'middle' };
+                    cell.border = borderStyle;
+                });
+            });
+
+            sheet.getColumn(1).width = 6;
+            sheet.getColumn(2).width = 18;
+            sheet.getColumn(3).width = 32;
+            sheet.getColumn(4).width = 20;
+
+            workbook.xlsx.writeBuffer().then(buffer => {
+                saveAs(new Blob([buffer]), `RePrint_Request_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            });
+        } catch (err) {
+            alert('❌ Export បរាជ័យ៖ ' + err.message);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        renderDirectPrintIssues();
+        const inInput = document.getElementById('input-issue-in');
+        if (inInput) {
+            inInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doAddPrintIssue();
+                }
+            });
+        }
+    });
+</script>
+
+<!-- ============================================================
    TAB HANDLERS
    ============================================================ -->
 <script>
@@ -519,10 +699,8 @@
         const results = document.getElementById('analytics-results');
         if (results) results.style.display = 'none';
 
-        // ⚡ បង្ហាញទិន្នន័យលើតារាងភ្លាមៗពេលចុច Tab Analytics
-        if (window.AutomationEngine && typeof window.AutomationEngine.renderPrintIssues === 'function') {
-            window.AutomationEngine.renderPrintIssues();
-        }
+        // ⚡ បង្ហាញទិន្នន័យលើតារាងភ្លាមៗ
+        renderDirectPrintIssues();
     }
 
     function refreshDashboardStats() {
