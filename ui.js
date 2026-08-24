@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (Fixed Scroll & Touch Trigger)
+// 🖥️ UI MODULE - Premium Mobile-First (With Mode Selector & New Cycle)
 // ================================================================
 
 window.UI = {
@@ -104,7 +104,8 @@ window.UI = {
                 try {
                     const result = window.RouteEngine.processSequence();
                     if (result && window.UI && typeof window.UI.enterFieldMode === 'function') {
-                        window.UI.enterFieldMode(true);
+                        // 🆕 បង្ហាញផ្ទាំងជ្រើសរើសជុំថ្មី ឬបន្តជុំមុន
+                        window.UI.enterFieldMode(false);
                     }
                 } catch (err) {
                     console.error('❌ Route processing error:', err);
@@ -198,9 +199,7 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // ============================================================
-        // 🛠️ SMART TOUCH & SCROLL GUARD (ការពារកុំឱ្យលោតពេល Scroll)
-        // ============================================================
+        // Touch & Click Protection
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
             let touchStartX = 0;
@@ -219,7 +218,6 @@ window.UI = {
                 if (e.touches.length === 1) {
                     const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
                     const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-                    // ប្រសិនបើម្រាមដៃរំកិលលើសពី 8px ចាត់ទុកថាជា Scroll (មិនមែន Click ទេ)
                     if (deltaX > 8 || deltaY > 8) {
                         isScrolling = true;
                     }
@@ -227,7 +225,6 @@ window.UI = {
             }, { passive: true });
 
             tableBody.addEventListener('click', (e) => {
-                // បើកំពុងអូស Scroll ឬប៉ះលើប្រអប់ Input មិនត្រូវបើក Method Picker ឡើយ
                 if (isScrolling) return;
                 if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) return;
 
@@ -258,7 +255,6 @@ window.UI = {
         }
         document.getElementById('method-picker-close')?.addEventListener('click', () => this.closeMethodPicker());
 
-        // Quick Method Buttons
         const nextUpContainer = document.getElementById('next-up-cards');
         if (nextUpContainer) {
             nextUpContainer.addEventListener('click', (e) => {
@@ -302,7 +298,7 @@ window.UI = {
             importJsonBtn.addEventListener('click', () => restoreFileInput.click());
         }
 
-        // --- Regular Fields - Save on change ---
+        // Regular Fields listener
         document.addEventListener('change', function(e) {
             const target = e.target;
             if (target.classList.contains('regular-receiver-input') ||
@@ -339,6 +335,9 @@ window.UI = {
         console.log('✅ UI.init() completed');
     },
 
+    // ============================================================
+    // 2. ADD HOUSE UI
+    // ============================================================
     _initAddHouseUI: function() {
         const container = document.getElementById('area-field');
         if (!container || document.getElementById('btn-add-house')) return;
@@ -536,6 +535,9 @@ window.UI = {
         this.updateProgressBar();
     },
 
+    // ============================================================
+    // 3. CLEAR & SWITCH MODES
+    // ============================================================
     clearAllData: function() {
         window.currentExportData = [];
         if (window.masterDataIndex instanceof Map) { window.masterDataIndex.clear(); window.masterDataIndex = null; }
@@ -619,21 +621,94 @@ window.UI = {
         window.StorageEngine.saveSessionCache();
     },
 
-    enterFieldMode: function(skipSelector) {
+    // ============================================================
+    // 4. ENTER FIELD MODE & MODE SELECTOR (ជម្រើសចែកជុំថ្មី)
+    // ============================================================
+    enterFieldMode: function(skipSelector = false) {
         if (window.activeJobId) {
             const btn = document.getElementById('btn-back-top');
             if (btn) { btn.style.display = 'flex'; btn.innerHTML = '⬅️ ត្រឡប់ទៅបញ្ជី Jobs'; }
         }
         document.getElementById('next-up-panel').style.display = 'block';
-        if (skipSelector) {
+        
+        // 🆕 បើមានផ្ទះចែករួចខ្លះ បង្ហាញផ្ទាំង Mode Selector សួរនាំជុំថ្មី
+        const hasCompletedRows = (window.currentExportData || []).some(r => window.Utils.isCompletedStatus(r.status));
+        if (skipSelector || !hasCompletedRows) {
             if (!window.currentExportData || window.currentExportData.length === 0) {
                 window.Utils.showAlert('⚠️ គ្មានទិន្នន័យផ្លូវចែក!');
                 return;
             }
             this._enterFieldModeReal();
         } else {
-            this._enterFieldModeReal();
+            this._showModeSelector();
         }
+    },
+
+    _showModeSelector: function() { 
+        this._injectModeSelectorUI(); 
+        document.getElementById('mode-selector-overlay')?.classList.add('active'); 
+    },
+    
+    _closeModeSelector: function() { 
+        document.getElementById('mode-selector-overlay')?.classList.remove('active'); 
+    },
+
+    _injectModeSelectorUI: function() {
+        if (document.getElementById('mode-selector-overlay')) return;
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="mode-selector-overlay" class="method-picker-overlay" style="z-index: 9999;">
+                <div class="method-picker-sheet">
+                    <div class="method-picker-handle"></div>
+                    <div class="method-picker-header">
+                        <span>📋 ជ្រើសរើសរបៀបចែក</span>
+                        <button type="button" id="mode-selector-close" class="method-picker-close">✕</button>
+                    </div>
+                    <p class="method-picker-name" style="margin-bottom: 16px;">តើអ្នកចង់បន្តការចែកជុំមុន ឬចាប់ផ្តើមជុំថ្មី (Reset)?</p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <button type="button" id="mode-selector-continue" class="btn btn-primary" style="width:100%; min-height:48px;">🔄 បន្តការចែកជុំមុន (រក្សាទុកផ្ទះចែករួច)</button>
+                        <button type="button" id="mode-selector-reset" class="btn btn-warning" style="width:100%; min-height:48px;">🆕 ចាប់ផ្តើមជុំថ្មី (Reset ទៅមិនទាន់ចែក)</button>
+                        <button type="button" id="mode-selector-cancel" class="btn btn-slate" style="width:100%; min-height:44px;">បោះបង់</button>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('mode-selector-close')?.addEventListener('click', () => this._closeModeSelector());
+        document.getElementById('mode-selector-cancel')?.addEventListener('click', () => this._closeModeSelector());
+        
+        // ជម្រើសទី ១: បន្តការចែកចាស់
+        document.getElementById('mode-selector-continue')?.addEventListener('click', () => {
+            this._closeModeSelector();
+            this._enterFieldModeReal();
+        });
+
+        // ជម្រើសទី ២: ចាប់ផ្តើមជុំថ្មី (Reset គ្រប់ជួរទៅជាមិនទាន់ចែក)
+        document.getElementById('mode-selector-reset')?.addEventListener('click', () => {
+            if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពគ្រប់ផ្ទះក្នុងផ្លូវនេះទៅជា "មិនទាន់ចែក" សម្រាប់ជុំថ្មីមែនទេ?')) {
+                (window.currentExportData || []).forEach(r => {
+                    r.status = 'មិនទាន់ចែក';
+                    r.method = '';
+                    delete r.deliveredAt;
+                    delete r.regularReceivedTime;
+                });
+
+                // Update ចូល MasterData និង Jobs
+                window.StorageEngine.saveMasterCache();
+                if (window.activeJobId && window.JobsEngine) {
+                    const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
+                    if (job) {
+                        job.deliveryState = {};
+                        delete job._cachedProgress;
+                        window.JobsEngine.saveJobs();
+                        window.JobsEngine.renderJobsList();
+                    }
+                }
+
+                this._closeModeSelector();
+                this._enterFieldModeReal();
+                window.Utils.showAlert('✅ បានចាប់ផ្តើមជុំថ្មីរួចរាល់!');
+            }
+        });
     },
 
     _enterFieldModeReal: function() {
