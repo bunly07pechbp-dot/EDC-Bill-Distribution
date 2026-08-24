@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Guaranteed Name Display & Clean UI)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Isolated & Bulletproof Print Issues)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -7,9 +7,10 @@ window.AutomationEngine = {
     PRINT_ISSUES_KEY: 'EDC_PRINT_ISSUES',
     _printIssues: [],
 
+    // 🔧 FIX: Robust initialization with safe DOM check and duplicate prevention
     init: function() {
         if (this._initialized) {
-            this.bindPrintIssueEvents();
+            this.bindPrintIssueEvents(); // 🔧 FIX: Re-bind in case DOM re-rendered
             this.renderPrintIssues();
             return;
         }
@@ -22,6 +23,7 @@ window.AutomationEngine = {
         console.log('✅ AutomationEngine initialized successfully.');
     },
 
+    // 🔧 FIX: Separated and idempotent event bindings
     bindEvents: function() {
         document.getElementById('btn-auto-tag-digital')?.addEventListener('click', () => this.autoTagDigitalBills());
         document.getElementById('btn-analyze-route')?.addEventListener('click', () => this.analyzeRouteEfficiency());
@@ -30,6 +32,7 @@ window.AutomationEngine = {
         this.bindPrintIssueEvents();
     },
 
+    // 🔧 FIX: Direct, bulletproof event binding for Print Issues
     bindPrintIssueEvents: function() {
         const addBtn = document.getElementById('btn-add-print-issue');
         if (addBtn) {
@@ -42,6 +45,16 @@ window.AutomationEngine = {
         const inInput = document.getElementById('input-issue-in');
         if (inInput) {
             inInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addPrintIssue();
+                }
+            };
+        }
+
+        const noteInput = document.getElementById('input-issue-note');
+        if (noteInput) {
+            noteInput.onkeydown = (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     this.addPrintIssue();
@@ -68,6 +81,7 @@ window.AutomationEngine = {
         }
     },
 
+    // 🔧 FIX: Safe load from localStorage EDC_PRINT_ISSUES
     loadPrintIssues: function() {
         try {
             const raw = localStorage.getItem(this.PRINT_ISSUES_KEY);
@@ -82,9 +96,12 @@ window.AutomationEngine = {
         return this._printIssues;
     },
 
+    // 🔧 FIX: Save strictly to localStorage EDC_PRINT_ISSUES + Safe DBEngine fallback call
     savePrintIssues: function() {
         try {
             localStorage.setItem(this.PRINT_ISSUES_KEY, JSON.stringify(this._printIssues));
+            
+            // 🔧 FIX: Use existing DBEngine API without modifying DBEngine
             if (window.DBEngine && typeof window.DBEngine.saveSetting === 'function') {
                 window.DBEngine.saveSetting('printIssues', this._printIssues);
             }
@@ -93,69 +110,16 @@ window.AutomationEngine = {
         }
     },
 
-    // ⚡ ស្វែងរកឈ្មោះអតិថិជនឱ្យបានត្រឹមត្រូវបំផុត
-    _findCustomerDetails: function(canonicalIN) {
-        let name = '', box = 'N/A', cabin = window.currentCabinGlobal || 'N/A';
-
-        const extractDetails = (rec) => {
-            if (!rec) return false;
-            const foundName = rec.name || rec.customerName || rec.clientName || rec.ឈ្មោះ || rec.khmerName || rec.custName;
-            if (foundName && String(foundName).trim() !== '') {
-                name = String(foundName).trim();
-                box = rec.box || rec.boxNo || rec.ប្រអប់ || 'N/A';
-                cabin = rec.cabin || rec.កាប៊ីន || cabin;
-                return true;
-            }
-            return false;
-        };
-
-        // 1. masterDataIndex
-        if (window.masterDataIndex && typeof window.masterDataIndex.get === 'function') {
-            const rec = window.masterDataIndex.get(canonicalIN);
-            if (extractDetails(rec)) return { name, box, cabin };
-        }
-
-        // 2. Utils.findByInvoice
-        if (window.Utils && typeof window.Utils.findByInvoice === 'function') {
-            const rec = window.Utils.findByInvoice(canonicalIN);
-            if (extractDetails(rec)) return { name, box, cabin };
-        }
-
-        // 3. window.masterData Direct Search
-        const norm = (val) => {
-            if (window.Utils && typeof window.Utils.normalizeIN === 'function') return window.Utils.normalizeIN(val);
-            return String(val || '').replace(/[^\d\w]/g, '').trim();
-        };
-
-        if (Array.isArray(window.masterData)) {
-            const rec = window.masterData.find(r => {
-                const inv = r.invoice || r.in || r.inNumber || r.លេខIN;
-                return norm(inv) === canonicalIN;
-            });
-            if (extractDetails(rec)) return { name, box, cabin };
-        }
-
-        // 4. window.currentExportData Search
-        if (Array.isArray(window.currentExportData)) {
-            const rec = window.currentExportData.find(r => {
-                const inv = r.invoice || r.in || r.inNumber || r.លេខIN;
-                return norm(inv) === canonicalIN;
-            });
-            if (extractDetails(rec)) return { name, box, cabin };
-        }
-
-        return {
-            name: name || 'ក្រៅ Master Data',
-            box: box,
-            cabin: cabin
-        };
-    },
-
+    // 🔧 FIX: Complete, safe implementation of addPrintIssue()
     addPrintIssue: function() {
         try {
             const inInput = document.getElementById('input-issue-in');
+            const typeSelect = document.getElementById('select-issue-type');
+            const noteInput = document.getElementById('input-issue-note');
+
             const rawVal = inInput ? inInput.value.trim() : '';
             
+            // 1. Safe IN normalization
             let canonicalIN = '';
             if (window.Utils && typeof window.Utils.normalizeIN === 'function') {
                 canonicalIN = window.Utils.normalizeIN(rawVal);
@@ -163,6 +127,7 @@ window.AutomationEngine = {
                 canonicalIN = rawVal.replace(/[^\d\w]/g, '').trim();
             }
 
+            // 2. Validation
             if (!canonicalIN) {
                 if (window.Utils && typeof window.Utils.showAlert === 'function') {
                     window.Utils.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
@@ -173,9 +138,12 @@ window.AutomationEngine = {
                 return;
             }
 
-            // 🛡️ DUPLICATE PROTECTION
+            const issueType = typeSelect ? typeSelect.value : 'បោះពុម្ពមិនគ្រប់';
+            const note = noteInput ? noteInput.value.trim() : '';
+
+            // 3. 🛡️ DUPLICATE PROTECTION: Check if exact same IN + issueType already exists
             const isDuplicate = this._printIssues.some(
-                item => item.invoice === canonicalIN
+                item => item.invoice === canonicalIN && item.issueType === issueType
             );
 
             if (isDuplicate) {
@@ -188,33 +156,68 @@ window.AutomationEngine = {
                 return;
             }
 
-            const customer = this._findCustomerDetails(canonicalIN);
+            // 4. Safe Master Data Lookup (Priority: masterDataIndex -> masterData -> Fallback)
+            let matchedName = 'ក្រៅ Master Data';
+            let matchedBox = 'N/A';
+            let matchedCabin = window.currentCabinGlobal || 'N/A';
 
+            try {
+                if (window.masterDataIndex && typeof window.masterDataIndex.get === 'function' && window.masterDataIndex.has(canonicalIN)) {
+                    const rec = window.masterDataIndex.get(canonicalIN);
+                    if (rec) {
+                        matchedName = rec.name || matchedName;
+                        matchedBox = rec.box || matchedBox;
+                        matchedCabin = rec.cabin || matchedCabin;
+                    }
+                } else if (Array.isArray(window.masterData)) {
+                    const normFn = window.Utils?.normalizeIN || (v => String(v || '').trim());
+                    const rec = window.masterData.find(r => normFn(r.invoice) === canonicalIN);
+                    if (rec) {
+                        matchedName = rec.name || matchedName;
+                        matchedBox = rec.box || matchedBox;
+                        matchedCabin = rec.cabin || matchedCabin;
+                    }
+                }
+            } catch (err) {
+                console.warn('⚠️ Non-critical lookup error:', err);
+            }
+
+            // 5. Create new Record
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
             const newRecord = {
                 id: 'issue_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
                 invoice: canonicalIN,
-                name: customer.name,
-                box: customer.box,
-                cabin: customer.cabin,
-                issueType: 'ខូច/មិនគ្រប់',
-                note: '',
+                name: matchedName,
+                box: matchedBox,
+                cabin: matchedCabin,
+                issueType: issueType,
+                note: note,
                 recordedAt: timeStr
             };
 
+            // 6. Insert at top
             this._printIssues.unshift(newRecord);
+
+            // 7. Save to storage
             this.savePrintIssues();
+
+            // 8. Immediate UI update
             this.renderPrintIssues();
 
+            // 9. Clear inputs and re-focus
             if (inInput) {
                 inInput.value = '';
                 inInput.focus();
             }
+            if (noteInput) {
+                noteInput.value = '';
+            }
 
+            // 10. Success notification
             if (window.Utils && typeof window.Utils.showAlert === 'function') {
-                window.Utils.showAlert(`✅ បានកត់ត្រា៖ IN ${canonicalIN} (${customer.name})`);
+                window.Utils.showAlert(`✅ បានកត់ត្រា៖ IN ${canonicalIN} (${matchedName})`);
             }
 
         } catch (err) {
@@ -223,6 +226,7 @@ window.AutomationEngine = {
         }
     },
 
+    // 🔧 FIX: Safe delete with immediate UI and storage sync
     deletePrintIssue: function(id) {
         const item = this._printIssues.find(i => i.id === id);
         if (!item) return;
@@ -234,7 +238,7 @@ window.AutomationEngine = {
         }
     },
 
-    // ⚡ ធានាការបង្ហាញឈ្មោះឱ្យច្បាស់ ១០០% (High Contrast Visibility)
+    // 🔧 FIX: Lightweight and fast table renderer
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
         const badge = document.getElementById('badge-issue-count');
@@ -252,7 +256,7 @@ window.AutomationEngine = {
         }
 
         const esc = (str) => {
-            if (!str && str !== 0) return '';
+            if (!str) return '';
             return String(str).replace(/[&<>"']/g, (c) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             }[c]));
@@ -261,16 +265,13 @@ window.AutomationEngine = {
         let html = '';
         for (let i = 0; i < list.length; i++) {
             const item = list[i];
-            const displayName = item.name ? esc(item.name) : 'គ្មានឈ្មោះ';
-
             html += `
                 <tr style="border-bottom: 1px solid var(--border, #e2e8f0);">
-                    <td style="text-align: center; font-weight: 600; color: var(--text-muted, #64748b); padding: 12px 6px;">${i + 1}</td>
-                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary, #2563eb); font-size: 14.5px; padding: 12px 6px;">${esc(item.invoice)}</td>
-                    <!-- 🔧 FIX: ធានាពណ៌អក្សរច្បាស់ មិនបាត់បាំង -->
-                    <td style="text-align: left; font-weight: 700; color: var(--text, #0f172a); font-size: 14px; padding: 12px 10px;">${displayName}</td>
-                    <td style="text-align: center; padding: 12px 6px;">
-                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 10px; min-height: 30px; font-size: 12px; background: #ef4444; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                    <td style="text-align: center; font-weight: 600; color: var(--text-muted, #64748b); padding: 10px 4px;">${i + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary, #2563eb); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
+                    <td style="text-align: left; font-weight: 700; color: var(--text-name, #1e293b); padding: 10px 8px;">${esc(item.name)}</td>
+                    <td style="text-align: center; padding: 10px 4px;">
+                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
                     </td>
                 </tr>
             `;
@@ -279,6 +280,7 @@ window.AutomationEngine = {
         tbody.innerHTML = html;
     },
 
+    // 🔧 FIX: Export feature working seamlessly with ExcelJS
     exportPrintIssues: function() {
         if (!this._printIssues || this._printIssues.length === 0) {
             if (window.Utils && typeof window.Utils.showAlert === 'function') {
@@ -299,12 +301,12 @@ window.AutomationEngine = {
             const sheet = workbook.addWorksheet('Re-Print Request');
             const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
-            sheet.mergeCells('A1:C1');
+            sheet.mergeCells('A1:E1');
             sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ (ខូច/មិនគ្រប់)';
             sheet.getCell('A1').font = { name: 'Khmer OS Muol Light', size: 13, bold: true };
             sheet.getCell('A1').alignment = { horizontal: 'center' };
 
-            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន'];
+            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា', 'កំណត់ចំណាំ'];
             const headerRow = sheet.getRow(3);
             headerRow.height = 25;
             headers.forEach((h, i) => {
@@ -321,20 +323,24 @@ window.AutomationEngine = {
                 const cells = [
                     idx + 1,
                     item.invoice,
-                    item.name
+                    item.name,
+                    item.issueType,
+                    item.note || '-'
                 ];
                 cells.forEach((val, cIdx) => {
                     const cell = row.getCell(cIdx + 1);
                     cell.value = val;
                     cell.font = { name: 'Khmer OS Battambang', size: 10 };
-                    cell.alignment = { horizontal: (cIdx === 2) ? 'left' : 'center', vertical: 'middle' };
+                    cell.alignment = { horizontal: (cIdx === 2 || cIdx === 4) ? 'left' : 'center', vertical: 'middle' };
                     cell.border = borderStyle;
                 });
             });
 
             sheet.getColumn(1).width = 6;
             sheet.getColumn(2).width = 18;
-            sheet.getColumn(3).width = 32;
+            sheet.getColumn(3).width = 30;
+            sheet.getColumn(4).width = 20;
+            sheet.getColumn(5).width = 25;
 
             workbook.xlsx.writeBuffer().then(buffer => {
                 const dateStr = new Date().toISOString().slice(0, 10);
@@ -349,6 +355,9 @@ window.AutomationEngine = {
         }
     },
 
+    // ============================================================
+    // 🧠 AI & ROUTE ANALYTICS (Preserved 100%)
+    // ============================================================
     _showResult: function(title, content, isError = false) {
         const results = document.getElementById('analytics-results');
         const contentEl = document.getElementById('analytics-result-content');
@@ -458,6 +467,7 @@ ${taggedCount > 0 ? '💾 ទិន្នន័យត្រូវបានរក
     }
 };
 
+// 🔧 FIX: Self-healing bootstrap execution
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => window.AutomationEngine.init());
 } else {
