@@ -1,5 +1,5 @@
 // ==========================================================================
-// 📋 Distribution Jobs Module - Robust Progress & Canonical IN Reconciliation
+// 📋 Distribution Jobs Module - Robust Progress & Mode Selector on Open
 // ==========================================================================
 
 window.JobsEngine = {
@@ -12,7 +12,7 @@ window.JobsEngine = {
         if (this._initialized) return;
         console.log('📋 Jobs Engine initializing...');
         this.loadJobs();
-        this.reconcileAllJobs(); // 🆕 Reconstruct delivery states from all histories
+        this.reconcileAllJobs();
         this.wireImport();
         this.renderJobsList();
 
@@ -62,9 +62,6 @@ window.JobsEngine = {
         }
     },
 
-    // ============================================================
-    // 🔄 RECONCILE ALL JOBS (Restores completed state across all storage sources)
-    // ============================================================
     reconcileAllJobs: function() {
         if (!window.distributionJobs || window.distributionJobs.length === 0) return;
         
@@ -75,7 +72,6 @@ window.JobsEngine = {
             if (k) masterMap.set(k, r);
         });
 
-        // Collect all history sessions
         const historyMap = new Map();
         const sessions = window.StorageEngine?._cache?.history || [];
         sessions.forEach(session => {
@@ -100,12 +96,10 @@ window.JobsEngine = {
                 const masterRow = masterMap.get(canonicalInv);
                 const historyRow = historyMap.get(canonicalInv);
 
-                // Priority 1: Existing Job Delivery State (Never Downgrade)
                 if (existingState && existingState.completed) {
                     job.deliveryState[canonicalInv] = existingState;
                     if (canonicalInv !== String(inv)) delete job.deliveryState[String(inv)];
                     
-                    // Sync to master row if master row is not marked completed
                     if (masterRow && !window.Utils.isCompletedStatus(masterRow.status)) {
                         masterRow.status = existingState.status;
                         masterRow.deliveredAt = existingState.deliveredAt;
@@ -115,7 +109,6 @@ window.JobsEngine = {
                     return;
                 }
 
-                // Priority 2: Master Data Completed State
                 if (masterRow && window.Utils.isCompletedStatus(masterRow.status)) {
                     job.deliveryState[canonicalInv] = {
                         status: masterRow.status,
@@ -127,7 +120,6 @@ window.JobsEngine = {
                     return;
                 }
 
-                // Priority 3: Historical Session Logs
                 if (historyRow && window.Utils.isCompletedStatus(historyRow.status)) {
                     job.deliveryState[canonicalInv] = {
                         status: historyRow.status,
@@ -153,7 +145,6 @@ window.JobsEngine = {
         }
     },
 
-    // 🆕 Update single IN delivery state inside Active Job
     recordDelivery: function(invoice, status, method, deliveredAt) {
         const canonicalInv = window.Utils.normalizeIN(invoice);
         if (!canonicalInv) return;
@@ -230,12 +221,9 @@ window.JobsEngine = {
         const fileInput = document.getElementById('jobs-file-input');
         if (trigger && fileInput) {
             trigger.addEventListener('click', () => {
-                console.log('📥 Import button clicked');
                 fileInput.click();
             });
             fileInput.addEventListener('change', this.importWorkbook.bind(this));
-        } else {
-            console.warn('⚠️ Import buttons not found');
         }
 
         const backToJobsBtn = document.getElementById('btn-back-to-jobs');
@@ -383,11 +371,15 @@ window.JobsEngine = {
             container.innerHTML = html + paginationHtml;
 
             container.querySelectorAll('.job-open-btn').forEach((btn) => {
-                btn.addEventListener('click', () => this.openJob(btn.dataset.jobId));
+                btn.addEventListener('click', () => {
+                    this.openJob(btn.dataset.jobId);
+                });
             });
 
             container.querySelectorAll('.job-delete-btn').forEach((btn) => {
-                btn.addEventListener('click', () => this.deleteJob(btn.dataset.jobId));
+                btn.addEventListener('click', () => {
+                    this.deleteJob(btn.dataset.jobId);
+                });
             });
 
             container.querySelectorAll('.page-btn').forEach((btn) => {
@@ -414,6 +406,7 @@ window.JobsEngine = {
         this._showAlert(`🗑️ បានលុប Job "${job.worksheetName}" រួចរាល់!`);
     },
 
+    // 🆕 បើក Job ដោយដំណើរការ Mode Selector (សួរនាំជុំថ្មី ឬបន្ត)
     openJob: function(jobId) {
         const job = (window.distributionJobs || []).find((j) => j.id === jobId);
         if (!job) {
@@ -452,8 +445,9 @@ window.JobsEngine = {
         const nextUpPanel = document.getElementById('next-up-panel');
         if (nextUpPanel) nextUpPanel.style.display = 'block';
 
+        // 🆕 បើកផ្ទាំង Mode Selector សួរនាំជុំថ្មី ឬបន្ត
         if (window.UI && typeof window.UI.enterFieldMode === 'function') {
-            window.UI.enterFieldMode(true);
+            window.UI.enterFieldMode(false);
         }
 
         const lbl = document.getElementById('lbl-current-cabin');
@@ -497,69 +491,6 @@ window.JobsEngine = {
             alert(message);
         }
     }
-};
-
-// ================================================================
-// 🛠️ DEBUG REPORT FUNCTION (សម្រាប់ពិនិត្យមើល IN ដែលបាត់បង់)
-// ================================================================
-window.debugJobProgress = function(jobId) {
-    const jobs = window.distributionJobs || [];
-    const job = jobId ? jobs.find(j => j.id === jobId || j.worksheetName.includes(jobId)) : jobs[0];
-
-    if (!job) {
-        console.error('❌ Job not found.');
-        return null;
-    }
-
-    const norm = window.Utils.normalizeIN;
-    const masterMap = new Map();
-    (window.masterData || []).forEach(r => masterMap.set(norm(r.invoice), r));
-
-    const historyMap = new Map();
-    (window.StorageEngine?._cache?.history || []).forEach(s => {
-        (s.records || []).forEach(r => {
-            if (window.Utils.isCompletedStatus(r.status)) historyMap.set(norm(r.invoice), r);
-        });
-    });
-
-    const report = {
-        jobId: job.id,
-        worksheetName: job.worksheetName,
-        totalIN: job.inNumbers.length,
-        completedCount: 0,
-        pendingCount: 0,
-        missingCompletedINs: [],
-        details: []
-    };
-
-    job.inNumbers.forEach((inv, idx) => {
-        const canonical = norm(inv);
-        const state = job.deliveryState ? (job.deliveryState[canonical] || job.deliveryState[String(inv)]) : null;
-        const master = masterMap.get(canonical);
-        const history = historyMap.get(canonical);
-
-        const isCompleted = (state && state.completed) || (master && window.Utils.isCompletedStatus(master.status)) || (history && window.Utils.isCompletedStatus(history.status));
-
-        if (isCompleted) {
-            report.completedCount++;
-        } else {
-            report.pendingCount++;
-            report.missingCompletedINs.push(inv);
-            report.details.push({
-                index: idx + 1,
-                rawIN: inv,
-                canonicalIN: canonical,
-                hasState: !!state,
-                hasMaster: !!master,
-                hasHistory: !!history,
-                masterStatus: master ? master.status : 'N/A'
-            });
-        }
-    });
-
-    console.table(report.details.slice(0, 30));
-    console.log(`📊 Job "${job.worksheetName}": ${report.completedCount}/${report.totalIN} (${Math.round(report.completedCount/report.totalIN*100)}%)`);
-    return report;
 };
 
 document.addEventListener('DOMContentLoaded', function() {
