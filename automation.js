@@ -116,7 +116,7 @@ window.AutomationEngine = {
         this._printIssues.unshift(newRecord);
         this.savePrintIssues();
         
-        // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗ
+        // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗដោយមិនបាច់រង់ចាំ
         this.renderPrintIssues();
 
         // សម្អាត Input & Focus ត្រឡប់មកវិញ
@@ -142,6 +142,12 @@ window.AutomationEngine = {
 
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
+        const badgeCount = document.getElementById('badge-issue-count');
+        
+        if (badgeCount) {
+            badgeCount.innerText = `${this._printIssues.length} ផ្ទះ`;
+        }
+
         if (!tbody) return;
 
         if (!this._printIssues || this._printIssues.length === 0) {
@@ -159,18 +165,18 @@ window.AutomationEngine = {
 
             return `
                 <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="text-align: center; font-weight: 600; color: var(--text-muted);">${idx + 1}</td>
-                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px;">${esc(item.invoice)}</td>
-                    <td style="text-align: left; font-weight: 700; color: var(--text-name);">${esc(item.name)}</td>
-                    <td style="text-align: center; color: #ea580c; font-weight: 700;">${esc(item.box)}</td>
-                    <td style="text-align: center;">
-                        <span class="status-badge" style="background: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;">
+                    <td style="text-align: center; font-weight: 600; color: var(--text-muted); padding: 8px 4px;">${idx + 1}</td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px; padding: 8px 4px;">${esc(item.invoice)}</td>
+                    <td style="text-align: left; font-weight: 700; color: var(--text-name); padding: 8px 4px;">${esc(item.name)}</td>
+                    <td style="text-align: center; color: #ea580c; font-weight: 700; padding: 8px 4px;">${esc(item.box)}</td>
+                    <td style="text-align: center; padding: 8px 4px;">
+                        <span class="status-badge" style="background: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;">
                             ${esc(item.issueType)}
                         </span>
                     </td>
-                    <td style="text-align: left; font-size: 12.5px; color: var(--text-secondary);">${esc(item.note || '-')}</td>
-                    <td style="text-align: center; font-size: 11px; color: var(--text-muted);">${esc(item.recordedAt)}</td>
-                    <td style="text-align: center;">
+                    <td style="text-align: left; font-size: 12.5px; color: var(--text-secondary); padding: 8px 4px;">${esc(item.note || '-')}</td>
+                    <td style="text-align: center; font-size: 11px; color: var(--text-muted); padding: 8px 4px;">${esc(item.recordedAt)}</td>
+                    <td style="text-align: center; padding: 8px 4px;">
                         <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
                     </td>
                 </tr>
