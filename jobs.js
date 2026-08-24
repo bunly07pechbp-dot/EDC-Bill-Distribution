@@ -1,5 +1,5 @@
 // ==========================================================================
-// 📋 Distribution Jobs Module (Clean, Isolated & Compact Version)
+// 📋 Distribution Jobs Module - Instant Open & Performance Optimized
 // ==========================================================================
 
 window.JobsEngine = {
@@ -48,12 +48,15 @@ window.JobsEngine = {
         }
     },
 
-    // 🔄 Reconcile single job safely without affecting other jobs
     reconcileJob: function(job) {
         if (!job || !Array.isArray(job.inNumbers)) return false;
         const norm = window.Utils?.normalizeIN || (v => String(v || '').trim());
         
-        const masterMap = new Map((window.masterData || []).map(r => [norm(r.invoice), r]));
+        if (!window.masterDataIndex || window.masterDataIndex.size === 0) {
+            window.Utils.rebuildMasterIndex();
+        }
+        const masterMap = window.masterDataIndex;
+
         const historyMap = new Map();
         (window.StorageEngine?._cache?.history || []).forEach(s => {
             (s.records || []).forEach(r => {
@@ -64,20 +67,20 @@ window.JobsEngine = {
         if (!job.deliveryState) job.deliveryState = {};
         let modified = false;
 
-        job.inNumbers.forEach(inv => {
+        for (let i = 0; i < job.inNumbers.length; i++) {
+            const inv = job.inNumbers[i];
             const canonicalInv = norm(inv);
-            if (!canonicalInv) return;
+            if (!canonicalInv) continue;
 
             const existing = job.deliveryState[canonicalInv] || job.deliveryState[String(inv)];
-            const masterRow = masterMap.get(canonicalInv);
-            const historyRow = historyMap.get(canonicalInv);
-
             if (existing && existing.completed) {
                 job.deliveryState[canonicalInv] = existing;
                 if (canonicalInv !== String(inv)) delete job.deliveryState[String(inv)];
-                return;
+                continue;
             }
 
+            const masterRow = masterMap.get(canonicalInv);
+            const historyRow = historyMap.get(canonicalInv);
             const target = (masterRow && window.Utils?.isCompletedStatus(masterRow.status)) ? masterRow 
                          : (historyRow && window.Utils?.isCompletedStatus(historyRow.status)) ? historyRow : null;
 
@@ -90,7 +93,7 @@ window.JobsEngine = {
                 };
                 modified = true;
             }
-        });
+        }
 
         delete job._cachedProgress;
         return modified;
@@ -105,13 +108,12 @@ window.JobsEngine = {
         if (anyModified) this.saveJobs();
     },
 
-    // 🚚 Record Delivery strictly for the ACTIVE JOB
     recordDelivery: function(invoice, status, method, deliveredAt) {
         const canonicalInv = window.Utils?.normalizeIN(invoice);
         if (!canonicalInv || !window.activeJobId) return false;
 
         const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
-        if (!job || !job.inNumbers?.some(i => window.Utils?.normalizeIN(i) === canonicalInv)) return false;
+        if (!job) return false;
 
         if (!job.deliveryState) job.deliveryState = {};
 
@@ -131,7 +133,6 @@ window.JobsEngine = {
         return true;
     },
 
-    // 📊 Pure Read Progress Calculation
     computeJobProgress: function(job) {
         if (job._cachedProgress && job._cachedProgress.timestamp > Date.now() - 3000) {
             return job._cachedProgress;
@@ -141,18 +142,22 @@ window.JobsEngine = {
         const invoiceList = Array.isArray(job.inNumbers) ? job.inNumbers : [];
         const total = invoiceList.length;
         const stateMap = job.deliveryState || {};
-        const masterMap = new Map((window.masterData || []).map(r => [norm(r.invoice), r]));
+
+        if (!window.masterDataIndex || window.masterDataIndex.size === 0) {
+            window.Utils.rebuildMasterIndex();
+        }
+        const masterMap = window.masterDataIndex;
 
         let done = 0;
-        invoiceList.forEach(inv => {
-            const canonicalInv = norm(inv);
-            const state = stateMap[canonicalInv] || stateMap[String(inv)];
+        for (let i = 0; i < total; i++) {
+            const canonicalInv = norm(invoiceList[i]);
+            const state = stateMap[canonicalInv] || stateMap[String(invoiceList[i])];
             const master = masterMap.get(canonicalInv);
 
             if ((state && state.completed) || (master && window.Utils?.isCompletedStatus(master.status))) {
                 done++;
             }
-        });
+        }
 
         const statusLabel = (done === 0) ? 'Pending' : (done >= total && total > 0) ? 'Completed' : 'In Progress';
         const statusClass = (done === 0) ? 'job-status-pending' : (done >= total && total > 0) ? 'job-status-done' : 'job-status-progress';
@@ -393,6 +398,7 @@ window.JobsEngine = {
         this._showAlert(`🗑️ បានលុប Job "${job.worksheetName}" រួចរាល់!`);
     },
 
+    // ⚡ ដំណើរការបើក Job ភ្លាមៗ (Instant Fast Open)
     openJob: function(jobId) {
         const job = (window.distributionJobs || []).find(j => j.id === jobId);
         if (!job) return this._showAlert('⚠️ រកមិនឃើញ Job នេះទេ!');
@@ -400,7 +406,6 @@ window.JobsEngine = {
 
         window.activeJobId = jobId;
         window.isRegularJob = false;
-        this.reconcileJob(job);
 
         const ok = window.RouteEngine.buildExportData(job.inNumbers, job.deliveryState);
         if (!ok || !window.currentExportData?.length) return this._showAlert('⚠️ គ្មានទិន្នន័យដែលត្រូវគ្នានឹង Job នេះ!');
@@ -414,10 +419,12 @@ window.JobsEngine = {
         const nextUpPanel = document.getElementById('next-up-panel');
         if (nextUpPanel) nextUpPanel.style.display = 'block';
 
-        if (window.UI?.enterFieldMode) window.UI.enterFieldMode(false);
-
         const lbl = document.getElementById('lbl-current-cabin');
-        if (lbl) lbl.innerText = `📂 Job: ${job.worksheetName} — ${lbl.innerText}`;
+        if (lbl) lbl.innerText = `📂 Job: ${job.worksheetName}`;
+
+        if (window.UI?.enterFieldMode) {
+            window.UI.enterFieldMode(false);
+        }
     },
 
     backToJobsScreen: function() {
