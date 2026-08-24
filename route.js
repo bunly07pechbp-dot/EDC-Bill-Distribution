@@ -1,11 +1,9 @@
 // ================================================================
-// 🗺️ ROUTE ENGINE - Safe Route Building & Delivery State Sync
+// 🗺️ ROUTE ENGINE - Ultra-Fast $O(1)$ Route Builder
 // ================================================================
 
 window.RouteEngine = {
     processSequence: function() {
-        console.log('🔄 RouteEngine.processSequence() called');
-        
         if (!window.masterData || window.masterData.length === 0) {
             window.Utils.showAlert("⚠️ សូមបញ្ចូលហ្វាល់ Excel ជាមុនសិនបង!");
             return false;
@@ -17,60 +15,63 @@ window.RouteEngine = {
             return false;
         }
 
-        const orderedIds = inputText.replace(/[\r\n,;\t]+/g, ' ').split(' ').map(id => id.trim()).filter(id => id);
-        console.log('📋 Ordered IDs:', orderedIds.length);
-        
+        const orderedIds = inputText.replace(/[\r\n,;\t]+/g, ' ').split(' ').map(id => id.trim()).filter(Boolean);
         return this.buildExportData(orderedIds);
     },
 
+    // ⚡ Super Fast $O(1)$ Hash Map Lookup
     buildExportData: function(orderedIds, deliveryState = {}) {
-        console.log('🔧 RouteEngine.buildExportData() called with', orderedIds.length, 'IDs');
-        
         if (!window.masterData || window.masterData.length === 0) {
             window.Utils.showAlert("⚠️ សូមបញ្ចូលហ្វាល់ Excel ជាមុនសិនបង!");
             return false;
         }
 
-        window.currentExportData = [];
+        // ប្រាកដថា masterDataIndex ត្រូវបានបង្កើតរួចរាល់
+        if (!window.masterDataIndex || window.masterDataIndex.size === 0) {
+            window.Utils.rebuildMasterIndex();
+        }
+
+        const masterIndex = window.masterDataIndex;
+        const norm = window.Utils.normalizeIN;
+        const resultData = [];
         const notFoundIds = [];
         const seenIds = new Set();
 
-        orderedIds.forEach(id => {
-            const matchedRow = window.Utils.findByInvoice(id);
-            const state = deliveryState[String(id)];
+        for (let i = 0; i < orderedIds.length; i++) {
+            const rawId = orderedIds[i];
+            const canonicalId = norm(rawId);
+            if (!canonicalId || seenIds.has(canonicalId)) continue;
 
+            const matchedRow = masterIndex.get(canonicalId);
             if (matchedRow) {
-                const rowKey = String(matchedRow.invoice);
-                if (!seenIds.has(rowKey)) {
-                    if (state && state.completed) {
-                        matchedRow.status = state.status;
-                        matchedRow.method = state.method;
-                        matchedRow.deliveredAt = state.deliveredAt;
-                    }
-                    window.currentExportData.push(matchedRow);
-                    seenIds.add(rowKey);
+                const state = deliveryState[canonicalId] || deliveryState[String(rawId)];
+                if (state && state.completed) {
+                    matchedRow.status = state.status;
+                    matchedRow.method = state.method;
+                    matchedRow.deliveredAt = state.deliveredAt;
                 }
+                resultData.push(matchedRow);
+                seenIds.add(canonicalId);
             } else {
-                notFoundIds.push(id);
+                notFoundIds.push(rawId);
             }
-        });
+        }
 
-        console.log('✅ Matched:', window.currentExportData.length, 'Not found:', notFoundIds.length);
+        window.currentExportData = resultData;
 
-        if (window.currentExportData.length === 0) {
+        if (resultData.length === 0) {
             window.Utils.showAlert("⚠️ រកមិនឃើញលេខ IN ណាដែលត្រូវគ្នានឹង Excel ទេបង!");
             return false;
         }
 
         if (notFoundIds.length > 0) {
-            const preview = notFoundIds.slice(0, 10).join(', ');
-            const more = notFoundIds.length > 10 ? ` ...និង${notFoundIds.length - 10}ទៀត` : '';
-            window.Utils.showAlert(`⚠️ ចំណាំ៖ រកមិនឃើញ ${notFoundIds.length} លេខ IN ក្នុង Excel៖ ${preview}${more}`);
+            const preview = notFoundIds.slice(0, 5).join(', ');
+            const more = notFoundIds.length > 5 ? ` ...និង${notFoundIds.length - 5}ទៀត` : '';
+            console.warn(`⚠️ រកមិនឃើញ ${notFoundIds.length} លេខ IN ក្នុង Excel៖ ${preview}${more}`);
         }
 
-        console.log('✅ RouteEngine.buildExportData() completed successfully');
         return true;
     }
 };
 
-console.log('✅ RouteEngine loaded successfully');
+console.log('✅ Fast RouteEngine loaded successfully');
