@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Live Print Issues Tracker)
+// 🤖 AUTOMATION & AI ANALYSIS ENGINE (Compact: Show IN & Name Only)
 // ==========================================================================
 
 window.AutomationEngine = {
@@ -8,7 +8,6 @@ window.AutomationEngine = {
     _printIssues: [],
 
     init: function() {
-        if (this._initialized) return;
         console.log('🤖 Automation & AI Engine initializing...');
         this.loadPrintIssues();
         this.bindEvents();
@@ -22,8 +21,6 @@ window.AutomationEngine = {
         document.getElementById('btn-detect-anomalies')?.addEventListener('click', () => this.detectAnomalies());
 
         // Print Issues Controls
-        document.getElementById('btn-add-print-issue')?.addEventListener('click', () => this.addPrintIssue());
-        
         const inInput = document.getElementById('input-issue-in');
         if (inInput) {
             inInput.addEventListener('keydown', (e) => {
@@ -54,9 +51,6 @@ window.AutomationEngine = {
         });
     },
 
-    // ============================================================
-    // 🖨️ PRINT ISSUES MANAGEMENT (កត់ត្រាវិក្កយបត្រខ្វះ/ខូច)
-    // ============================================================
     loadPrintIssues: function() {
         try {
             const raw = localStorage.getItem(this.PRINT_ISSUES_KEY);
@@ -77,69 +71,81 @@ window.AutomationEngine = {
         }
     },
 
+    // ⚡ មុខងារកត់ត្រារហ័ស
     addPrintIssue: function() {
-        const inInput = document.getElementById('input-issue-in');
-        const typeSelect = document.getElementById('select-issue-type');
-        const noteInput = document.getElementById('input-issue-note');
+        try {
+            const inInput = document.getElementById('input-issue-in');
+            const typeSelect = document.getElementById('select-issue-type');
+            const noteInput = document.getElementById('input-issue-note');
 
-        const rawIN = inInput?.value.trim();
-        const canonicalIN = window.Utils?.normalizeIN ? window.Utils.normalizeIN(rawIN) : String(rawIN || '').trim();
-        const issueType = typeSelect?.value || 'បោះពុម្ពមិនគ្រប់';
-        const note = noteInput?.value.trim() || '';
+            const rawIN = inInput?.value ? inInput.value.trim() : '';
+            const canonicalIN = window.Utils?.normalizeIN ? window.Utils.normalizeIN(rawIN) : rawIN.replace(/\D/g, '');
+            const issueType = typeSelect?.value || 'បោះពុម្ពមិនគ្រប់';
+            const note = noteInput?.value ? noteInput.value.trim() : '';
 
-        if (!canonicalIN) {
-            window.Utils?.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
-            if (inInput) inInput.focus();
-            return;
+            if (!canonicalIN) {
+                if (window.Utils?.showAlert) window.Utils.showAlert('⚠️ សូមបញ្ចូលលេខ IN!');
+                else alert('⚠️ សូមបញ្ចូលលេខ IN!');
+                if (inInput) inInput.focus();
+                return;
+            }
+
+            // ស្វែងរកព័ត៌មានអតិថិជនពី Master Data
+            let matched = null;
+            if (window.masterDataIndex && window.masterDataIndex.has(canonicalIN)) {
+                matched = window.masterDataIndex.get(canonicalIN);
+            } else if (window.Utils?.findByInvoice) {
+                matched = window.Utils.findByInvoice(canonicalIN);
+            }
+
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            const newRecord = {
+                id: 'issue_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                invoice: canonicalIN,
+                name: matched ? matched.name : 'ក្រៅ Master Data',
+                box: matched ? matched.box : 'N/A',
+                cabin: matched ? matched.cabin : (window.currentCabinGlobal || 'N/A'),
+                issueType: issueType,
+                note: note,
+                recordedAt: timeStr
+            };
+
+            this._printIssues.unshift(newRecord);
+            this.savePrintIssues();
+            
+            // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗ
+            this.renderPrintIssues();
+
+            // Clear Input & Auto Focus
+            if (inInput) {
+                inInput.value = '';
+                inInput.focus();
+            }
+            if (noteInput) noteInput.value = '';
+
+            if (window.Utils?.showAlert) {
+                window.Utils.showAlert(`✅ បានកត់ត្រា៖ IN ${canonicalIN} - ${newRecord.name}`);
+            }
+        } catch (err) {
+            console.error('❌ Error in addPrintIssue:', err);
+            alert('❌ មានបញ្ហាក្នុងការកត់ត្រា៖ ' + err.message);
         }
-
-        // ស្វែងរកព័ត៌មានអតិថិជនពី Master Data (Fast Lookup)
-        let matched = null;
-        if (window.masterDataIndex && window.masterDataIndex.has(canonicalIN)) {
-            matched = window.masterDataIndex.get(canonicalIN);
-        } else if (window.Utils?.findByInvoice) {
-            matched = window.Utils.findByInvoice(canonicalIN);
-        }
-
-        const newRecord = {
-            id: 'issue_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-            invoice: canonicalIN,
-            name: matched ? matched.name : 'ក្រៅ Master Data',
-            box: matched ? matched.box : 'N/A',
-            cabin: matched ? matched.cabin : (window.currentCabinGlobal || 'N/A'),
-            issueType: issueType,
-            note: note,
-            recordedAt: window.Utils?.formatDateTime(new Date()) || new Date().toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        // បញ្ចូលទៅខាងលើគេក្នុងបញ្ជី
-        this._printIssues.unshift(newRecord);
-        this.savePrintIssues();
-        
-        // ⚡ បង្ហាញចេញមកលើតារាងភ្លាមៗដោយមិនបាច់រង់ចាំ
-        this.renderPrintIssues();
-
-        // សម្អាត Input & Focus ត្រឡប់មកវិញ
-        if (inInput) {
-            inInput.value = '';
-            inInput.focus();
-        }
-        if (noteInput) noteInput.value = '';
-
-        window.Utils?.showAlert(`✅ បានកត់ត្រាលេខ IN ${canonicalIN} (${issueType})!`);
     },
 
     deletePrintIssue: function(id) {
         const item = this._printIssues.find(i => i.id === id);
         if (!item) return;
 
-        if (confirm(`🗑️ លុបការកត់ត្រាលេខ IN: ${item.invoice} ចេញពីបញ្ជី?`)) {
+        if (confirm(`🗑️ លុបលេខ IN: ${item.invoice} (${item.name}) ចេញពីបញ្ជី?`)) {
             this._printIssues = this._printIssues.filter(i => i.id !== id);
             this.savePrintIssues();
             this.renderPrintIssues();
         }
     },
 
+    // ⚡ បង្ហាញតែ ល.រ, លេខ IN, និង ឈ្មោះអតិថិជន
     renderPrintIssues: function() {
         const tbody = document.getElementById('print-issues-tbody');
         const badgeCount = document.getElementById('badge-issue-count');
@@ -151,48 +157,34 @@ window.AutomationEngine = {
         if (!tbody) return;
 
         if (!this._printIssues || this._printIssues.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="text-align:center; padding:24px; color:var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-state" style="text-align:center; padding:24px; color:var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>`;
             return;
         }
 
         const esc = str => window.Utils?.escapeHtml ? window.Utils.escapeHtml(str) : String(str || '');
 
-        tbody.innerHTML = this._printIssues.map((item, idx) => {
-            let badgeBg = '#fee2e2', badgeColor = '#dc2626';
-            if (item.issueType === 'ខូច/រហែកក្រដាស') { badgeBg = '#ffedd5'; badgeColor = '#ea580c'; }
-            else if (item.issueType === 'បោះពុម្ពស្ទួន') { badgeBg = '#fef3c7'; badgeColor = '#d97706'; }
-            else if (item.issueType === 'ផ្សេងៗ') { badgeBg = '#f1f5f9'; badgeColor = '#475569'; }
-
-            return `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="text-align: center; font-weight: 600; color: var(--text-muted); padding: 8px 4px;">${idx + 1}</td>
-                    <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px; padding: 8px 4px;">${esc(item.invoice)}</td>
-                    <td style="text-align: left; font-weight: 700; color: var(--text-name); padding: 8px 4px;">${esc(item.name)}</td>
-                    <td style="text-align: center; color: #ea580c; font-weight: 700; padding: 8px 4px;">${esc(item.box)}</td>
-                    <td style="text-align: center; padding: 8px 4px;">
-                        <span class="status-badge" style="background: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;">
-                            ${esc(item.issueType)}
-                        </span>
-                    </td>
-                    <td style="text-align: left; font-size: 12.5px; color: var(--text-secondary); padding: 8px 4px;">${esc(item.note || '-')}</td>
-                    <td style="text-align: center; font-size: 11px; color: var(--text-muted); padding: 8px 4px;">${esc(item.recordedAt)}</td>
-                    <td style="text-align: center; padding: 8px 4px;">
-                        <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        tbody.innerHTML = this._printIssues.map((item, idx) => `
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="text-align: center; font-weight: 600; color: var(--text-muted); padding: 10px 4px;">${idx + 1}</td>
+                <td style="text-align: center; font-family: monospace; font-weight: 800; color: var(--primary); font-size: 14px; padding: 10px 4px;">${esc(item.invoice)}</td>
+                <td style="text-align: left; font-weight: 700; color: var(--text-name); padding: 10px 8px;">${esc(item.name)}</td>
+                <td style="text-align: center; padding: 10px 4px;">
+                    <button type="button" class="btn btn-delete-issue" data-id="${esc(item.id)}" style="padding: 4px 8px; min-height: 28px; font-size: 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;" title="លុបចោល">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
     },
 
-    // 📤 Export Excel របាយការណ៍សុំបោះពុម្ពឡើងវិញ
+    // 📤 Export Excel
     exportPrintIssues: function() {
         if (!this._printIssues || this._printIssues.length === 0) {
-            window.Utils?.showAlert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            if (window.Utils?.showAlert) window.Utils.showAlert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
+            else alert('⚠️ គ្មានទិន្នន័យសម្រាប់ Export ទេ!');
             return;
         }
 
         if (typeof ExcelJS === 'undefined') {
-            window.Utils?.showAlert('❌ Library ExcelJS មិនត្រូវបានផ្ទុក!');
+            alert('❌ Library ExcelJS មិនត្រូវបានផ្ទុក!');
             return;
         }
 
@@ -201,12 +193,12 @@ window.AutomationEngine = {
             const sheet = workbook.addWorksheet('Re-Print Request');
             const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
-            sheet.mergeCells('A1:G1');
-            sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ (ខូច/មិនគ្រប់)';
+            sheet.mergeCells('A1:D1');
+            sheet.getCell('A1').value = 'បញ្ជីស្នើសុំបោះពុម្ពវិក្កយបត្រឡើងវិញ';
             sheet.getCell('A1').font = { name: 'Khmer OS Muol Light', size: 13, bold: true };
             sheet.getCell('A1').alignment = { horizontal: 'center' };
 
-            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រអប់', 'កាប៊ីន', 'ប្រភេទបញ្ហា', 'កំណត់ចំណាំ'];
+            const headers = ['ល.រ', 'លេខ IN', 'ឈ្មោះអតិថិជន', 'ប្រភេទបញ្ហា'];
             const headerRow = sheet.getRow(3);
             headerRow.height = 25;
             headers.forEach((h, i) => {
@@ -224,42 +216,33 @@ window.AutomationEngine = {
                     idx + 1,
                     item.invoice,
                     item.name,
-                    item.box,
-                    item.cabin,
-                    item.issueType,
-                    item.note
+                    item.issueType
                 ];
                 cells.forEach((val, cIdx) => {
                     const cell = row.getCell(cIdx + 1);
                     cell.value = val;
                     cell.font = { name: 'Khmer OS Battambang', size: 10 };
-                    cell.alignment = { horizontal: (cIdx === 2 || cIdx === 6) ? 'left' : 'center', vertical: 'middle' };
+                    cell.alignment = { horizontal: (cIdx === 2) ? 'left' : 'center', vertical: 'middle' };
                     cell.border = borderStyle;
                 });
             });
 
             sheet.getColumn(1).width = 6;
-            sheet.getColumn(2).width = 16;
-            sheet.getColumn(3).width = 28;
-            sheet.getColumn(4).width = 14;
-            sheet.getColumn(5).width = 14;
-            sheet.getColumn(6).width = 20;
-            sheet.getColumn(7).width = 30;
+            sheet.getColumn(2).width = 18;
+            sheet.getColumn(3).width = 32;
+            sheet.getColumn(4).width = 20;
 
             workbook.xlsx.writeBuffer().then(buffer => {
                 const dateStr = new Date().toISOString().slice(0, 10);
                 saveAs(new Blob([buffer]), `RePrint_Request_${dateStr}.xlsx`);
-                window.Utils?.showAlert('✅ Export របាយការណ៍សុំបោះពុម្ពរួចរាល់!');
+                if (window.Utils?.showAlert) window.Utils.showAlert('✅ Export របាយការណ៍សុំបោះពុម្ពរួចរាល់!');
             });
         } catch (err) {
             console.error('❌ Export print issues error:', err);
-            window.Utils?.showAlert('❌ Export បរាជ័យ!');
+            alert('❌ Export បរាជ័យ៖ ' + err.message);
         }
     },
 
-    // ============================================================
-    // AI & ROUTE ANALYTICS
-    // ============================================================
     _showResult: function(title, content, isError = false) {
         const results = document.getElementById('analytics-results');
         const contentEl = document.getElementById('analytics-result-content');
@@ -370,7 +353,7 @@ ${taggedCount > 0 ? '💾 ទិន្នន័យត្រូវបានរក
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (window.AutomationEngine && typeof window.AutomationEngine.init === 'function') {
+    if (window.AutomationEngine) {
         window.AutomationEngine.init();
     }
 });
