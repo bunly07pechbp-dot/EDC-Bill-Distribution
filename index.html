@@ -338,6 +338,21 @@
     </div>
 </div>
 
+<!-- 🔍 GLOBAL MASTER DB SEARCH RESULTS MODAL (FLOATING OVERLAY) -->
+<div id="global-search-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); z-index: 99999; backdrop-filter: blur(5px); align-items: flex-start; justify-content: center; padding: 20px 12px; box-sizing: border-box; overflow-y: auto;">
+    <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border, #334155); border-radius: 16px; width: 100%; max-width: 550px; box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.6); overflow: hidden; margin-top: 40px;">
+        <div style="padding: 14px 16px; border-bottom: 1px solid var(--border, #334155); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2);">
+            <span style="font-weight: 700; font-size: 15px; color: var(--text, #f8fafc); display: flex; align-items: center; gap: 6px;">
+                🔍 លទ្ធផលស្វែងរក Master DB (<span id="global-search-count">0</span>)
+            </span>
+            <button type="button" onclick="closeGlobalSearchModal()" style="background: none; border: none; font-size: 20px; color: var(--text-muted, #94a3b8); cursor: pointer; padding: 4px 8px; line-height: 1;">✕</button>
+        </div>
+        <div id="global-search-results" style="max-height: 60vh; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <!-- Results Injected Dynamically -->
+        </div>
+    </div>
+</div>
+
 <!-- METHOD PICKER MODAL -->
 <div class="method-picker-overlay" id="method-picker-modal">
     <div class="method-picker-sheet">
@@ -393,6 +408,150 @@
 <script src="regular.js?v=20"></script>
 <script src="reports.js?v=20"></script>
 <script src="automation.js?v=20"></script>
+
+<!-- ============================================================
+   🔍 GLOBAL MASTER DB SEARCH CONTROLLER
+   ============================================================ -->
+<script>
+    let _searchDebounceTimer = null;
+
+    function initGlobalDBSearch() {
+        const searchInput = document.getElementById('search-invoice');
+        if (!searchInput) return;
+
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(_searchDebounceTimer);
+            const query = e.target.value.trim();
+
+            if (!query || query.length < 2) {
+                closeGlobalSearchModal();
+                return;
+            }
+
+            _searchDebounceTimer = setTimeout(() => {
+                executeGlobalDBSearch(query);
+            }, 200);
+        });
+
+        const modal = document.getElementById('global-search-modal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeGlobalSearchModal();
+                }
+            });
+        }
+    }
+
+    function closeGlobalSearchModal() {
+        const modal = document.getElementById('global-search-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function executeGlobalDBSearch(query) {
+        let sourceData = [];
+        if (Array.isArray(window.masterData) && window.masterData.length > 0) {
+            sourceData = window.masterData;
+        } else if (window.StorageEngine && typeof window.StorageEngine.loadMasterData === 'function') {
+            sourceData = window.StorageEngine.loadMasterData();
+        }
+
+        if (!sourceData || sourceData.length === 0) {
+            if (window.Utils && typeof window.Utils.showAlert === 'function') {
+                window.Utils.showAlert('⚠️ មិនទាន់មាន Master Data ក្នុងប្រព័ន្ធនៅឡើយ!');
+            }
+            return;
+        }
+
+        const q = query.toLowerCase();
+        const norm = (v) => String(v || '').replace(/[^\d\w]/g, '').toLowerCase();
+        const qNorm = norm(query);
+
+        const matches = [];
+        for (let i = 0; i < sourceData.length; i++) {
+            const r = sourceData[i];
+            if (!r) continue;
+
+            const inv = String(r.invoice || r.in || r.inNumber || r.លេខIN || '');
+            const name = String(r.name || r.customerName || r.clientName || r.ឈ្មោះ || '');
+            const meter = String(r.meter || r.meterNo || r.លេខកុងទ័រ || '');
+            const box = String(r.box || r.boxNo || r.ប្រអប់ || '');
+            const cabin = String(r.cabin || r.កាប៊ីន || '');
+
+            if (
+                norm(inv).includes(qNorm) ||
+                name.toLowerCase().includes(q) ||
+                norm(meter).includes(qNorm) ||
+                box.toLowerCase().includes(q) ||
+                cabin.toLowerCase().includes(q)
+            ) {
+                matches.push(r);
+                if (matches.length >= 50) break;
+            }
+        }
+
+        renderGlobalSearchResults(matches, query);
+    }
+
+    function renderGlobalSearchResults(results, query) {
+        const modal = document.getElementById('global-search-modal');
+        const container = document.getElementById('global-search-results');
+        const countEl = document.getElementById('global-search-count');
+
+        if (!modal || !container) return;
+
+        if (countEl) countEl.innerText = `${results.length} ផ្ទះ`;
+
+        if (results.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 30px 10px; color: var(--text-muted, #94a3b8);">
+                    <span style="font-size: 32px; display: block; margin-bottom: 6px;">📭</span>
+                    រកមិនឃើញទិន្នន័យសម្រាប់ "<strong>${window.Utils?.escapeHtml ? window.Utils.escapeHtml(query) : query}</strong>" ក្នុង Master Data ឡើយ
+                </div>
+            `;
+            modal.style.display = 'flex';
+            return;
+        }
+
+        const esc = (s) => (window.Utils?.escapeHtml ? window.Utils.escapeHtml(s) : String(s || ''));
+
+        container.innerHTML = results.map((item) => {
+            const inv = item.invoice || item.in || item.inNumber || item.លេខIN || '-';
+            const name = item.name || item.customerName || item.clientName || item.ឈ្មោះ || 'គ្មានឈ្មោះ';
+            const box = item.box || item.boxNo || item.ប្រអប់ || '-';
+            const cabin = item.cabin || item.កាប៊ីន || '-';
+            const meter = item.meter || item.meterNo || item.លេខកុងទ័រ || '-';
+            const addr = item.address || item.អាសយដ្ឋាន || '';
+            const isDigital = item.digitalNote || (item.method && String(item.method).includes('digital'));
+
+            return `
+                <div style="background: var(--bg, #0f172a); border: 1px solid var(--border, #334155); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #38bdf8;">
+                            ⚡ IN: ${esc(inv)}
+                        </span>
+                        <span style="font-size: 11px; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 2px 8px; border-radius: 6px;">
+                            កាប៊ីន: ${esc(cabin)}
+                        </span>
+                    </div>
+                    <div style="font-size: 14.5px; font-weight: 700; color: var(--text, #f8fafc); margin-top: 2px;">
+                        👤 ${esc(name)}
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--text-muted, #94a3b8); margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.08);">
+                        <span>📦 ប្រអប់: <strong style="color: #ea580c;">${esc(box)}</strong></span>
+                        <span>🔢 Meter: <strong style="color: #e2e8f0;">${esc(meter)}</strong></span>
+                        ${isDigital ? '<span style="color:#22c55e; font-weight:700;">📱 Digital Bill</span>' : ''}
+                    </div>
+                    ${addr ? `<div style="font-size: 11.5px; color: var(--text-muted, #64748b); margin-top: 2px;">📍 ${esc(addr)}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        modal.style.display = 'flex';
+    }
+
+    document.addEventListener('DOMContentLoaded', initGlobalDBSearch);
+</script>
 
 <!-- ============================================================
    TAB HANDLERS
