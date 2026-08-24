@@ -211,50 +211,53 @@
             <p style="color: var(--text-secondary); font-size: 14px;">វិភាគទិន្នន័យ និងប្រើប្រាស់មុខងារស្វ័យប្រវត្តិកម្ម</p>
         </div>
 
-        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស -->
+        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស (Live Display) -->
         <div class="analytics-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                 <div>
-                    <h3 style="font-size: 16px; font-weight: 700; color: var(--text); margin: 0;">🖨️ បញ្ជីវិក្កយបត្រខ្វះ / ខូចក្រដាស</h3>
-                    <p style="font-size: 12px; color: var(--text-muted); margin: 2px 0 0;">កត់ត្រាលេខ IN ដែលបោះពុម្ពមិនគ្រប់ ឬខូច ដើម្បីស្នើសុំបោះពុម្ពឡើងវិញ</p>
+                    <h3 style="font-size: 16px; font-weight: 700; color: var(--text); margin: 0; display: flex; align-items: center; gap: 8px;">
+                        🖨️ បញ្ជីវិក្កយបត្រខ្វះ / ខូចក្រដាស 
+                        <span id="badge-issue-count" style="background: #ef4444; color: white; font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 800;">0 ផ្ទះ</span>
+                    </h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0;">កត់ត្រាលេខ IN ដែលបោះពុម្ពមិនគ្រប់ ឬខូច ដើម្បីស្នើសុំបោះពុម្ពឡើងវិញ</p>
                 </div>
-                <button class="btn btn-warning" id="btn-export-print-issues" style="font-size: 12.5px; padding: 6px 14px; min-height: 38px;">
+                <button type="button" class="btn btn-warning" id="btn-export-print-issues" style="font-size: 13px; padding: 8px 16px; min-height: 40px;">
                     📤 Export បញ្ជីសុំបោះពុម្ពឡើងវិញ
                 </button>
             </div>
 
             <!-- Form បញ្ចូលរហ័ស -->
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; background: var(--bg); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
-                <input type="text" id="input-issue-in" placeholder="លេខ IN *" style="flex: 1; min-width: 120px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text);">
-                <select id="select-issue-type" style="flex: 1; min-width: 140px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text);">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; background: var(--bg); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                <input type="text" id="input-issue-in" placeholder="លេខ IN *" style="flex: 1; min-width: 130px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text); font-weight: 700;">
+                <select id="select-issue-type" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text); font-weight: 600;">
                     <option value="បោះពុម្ពមិនគ្រប់">❌ បោះពុម្ពមិនគ្រប់</option>
                     <option value="ខូច/រហែកក្រដាស">📄 ខូច/រហែកក្រដាស</option>
                     <option value="បោះពុម្ពស្ទួន">🔁 បោះពុម្ពស្ទួន</option>
                     <option value="ផ្សេងៗ">⚠️ ផ្សេងៗ</option>
                 </select>
-                <input type="text" id="input-issue-note" placeholder="កំណត់ចំណាំ (បើមាន)..." style="flex: 1.5; min-width: 150px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text);">
-                <button type="button" class="btn btn-primary" id="btn-add-print-issue" style="min-height: 40px; padding: 8px 16px; font-size: 13px;">
+                <input type="text" id="input-issue-note" placeholder="កំណត់ចំណាំ (បើមាន)..." style="flex: 1.5; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-input); color: var(--text);">
+                <button type="button" class="btn btn-primary" id="btn-add-print-issue" style="min-height: 44px; padding: 8px 20px; font-size: 14px;">
                     ➕ កត់ត្រា
                 </button>
             </div>
 
-            <!-- តារាងបង្ហាញបញ្ជីដែលបានកត់ត្រា -->
-            <div class="table-responsive" style="max-height: 250px;">
-                <table>
+            <!-- តារាងបង្ហាញបញ្ជីដែលបានកត់ត្រា (Live Display List) -->
+            <div class="table-responsive" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead>
-                        <tr>
-                            <th style="width: 40px;">ល.រ</th>
-                            <th style="min-width: 100px;">លេខ IN</th>
-                            <th style="min-width: 130px; text-align: left;">ឈ្មោះអតិថិជន</th>
-                            <th style="min-width: 80px;">ប្រអប់</th>
-                            <th style="min-width: 120px;">បញ្ហា</th>
-                            <th style="min-width: 120px; text-align: left;">កំណត់ចំណាំ</th>
-                            <th style="min-width: 100px;">កាលបរិច្ឆេទ</th>
-                            <th style="width: 60px;">សកម្មភាព</th>
+                        <tr style="background: var(--bg); position: sticky; top: 0; z-index: 5;">
+                            <th style="width: 40px; padding: 10px 6px;">ល.រ</th>
+                            <th style="min-width: 100px; padding: 10px 6px;">លេខ IN</th>
+                            <th style="min-width: 140px; padding: 10px 6px; text-align: left;">ឈ្មោះអតិថិជន</th>
+                            <th style="min-width: 80px; padding: 10px 6px;">ប្រអប់</th>
+                            <th style="min-width: 120px; padding: 10px 6px;">ប្រភេទបញ្ហា</th>
+                            <th style="min-width: 130px; padding: 10px 6px; text-align: left;">កំណត់ចំណាំ</th>
+                            <th style="min-width: 110px; padding: 10px 6px;">កាលបរិច្ឆេទ</th>
+                            <th style="width: 60px; padding: 10px 6px;">សកម្មភាព</th>
                         </tr>
                     </thead>
                     <tbody id="print-issues-tbody">
-                        <tr><td colspan="8" class="empty-state">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>
+                        <tr><td colspan="8" class="empty-state" style="text-align: center; padding: 24px; color: var(--text-muted);">📭 មិនទាន់មានទិន្នន័យកត់ត្រាទេ</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -520,6 +523,7 @@
         const results = document.getElementById('analytics-results');
         if (results) results.style.display = 'none';
 
+        // ⚡ បង្ហាញទិន្នន័យលើតារាងភ្លាមៗពេលចុច Tab Analytics
         if (window.AutomationEngine && typeof window.AutomationEngine.renderPrintIssues === 'function') {
             window.AutomationEngine.renderPrintIssues();
         }
