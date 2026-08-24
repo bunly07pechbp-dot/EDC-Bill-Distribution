@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (With Direct New Cycle & Mode Selector)
+// 🖥️ UI MODULE - Premium Mobile-First (Mode Selector & New Cycle Guaranteed)
 // ================================================================
 
 window.UI = {
@@ -81,7 +81,6 @@ window.UI = {
             cleanBtn.addEventListener('click', () => window.UI.cleanData());
         }
 
-        // --- ប៊ូតុងរៀបចំតារាងចែក (បើក Modal ឱ្យជ្រើសរើសជុំថ្មី ឬបន្ត) ---
         const processBtn = document.getElementById('btn-process-route');
         if (processBtn) {
             const newBtn = processBtn.cloneNode(true);
@@ -104,7 +103,6 @@ window.UI = {
                 try {
                     const result = window.RouteEngine.processSequence();
                     if (result && window.UI && typeof window.UI.enterFieldMode === 'function') {
-                        // 🆕 បង្ហាញផ្ទាំង Modal ជម្រើសជុំថ្មី
                         window.UI.enterFieldMode(false);
                     }
                 } catch (err) {
@@ -114,7 +112,6 @@ window.UI = {
             });
         }
 
-        // --- 🆕 ប៊ូតុងចាប់ផ្តើមជុំថ្មីផ្ទាល់លើ Action Bar ---
         const newCycleBtn = document.getElementById('btn-start-new-cycle');
         if (newCycleBtn) {
             newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
@@ -205,7 +202,6 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // Smart Touch Protection for Tables
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
             let touchStartX = 0;
@@ -304,7 +300,7 @@ window.UI = {
             importJsonBtn.addEventListener('click', () => restoreFileInput.click());
         }
 
-        // Regular Fields
+        // Regular Fields listener
         document.addEventListener('change', function(e) {
             const target = e.target;
             if (target.classList.contains('regular-receiver-input') ||
@@ -342,7 +338,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 2. NEW CYCLE & MODE SELECTOR LOGIC
+    // 2. NEW CYCLE & MODE SELECTOR LOGIC (ជម្រើសចែកជុំថ្មី)
     // ============================================================
     startNewCyclePrompt: function() {
         if (!window.masterData || window.masterData.length === 0) {
@@ -358,7 +354,6 @@ window.UI = {
                     `តើអ្នកចង់ចាប់ផ្តើមជុំថ្មីឥឡូវនេះមែនទេ?`;
 
         if (confirm(msg)) {
-            // Reset status in Master Data
             window.masterData.forEach(r => {
                 r.status = 'មិនទាន់ចែក';
                 r.method = '';
@@ -366,7 +361,6 @@ window.UI = {
                 delete r.regularReceivedTime;
             });
 
-            // Reset currentExportData
             (window.currentExportData || []).forEach(r => {
                 r.status = 'មិនទាន់ចែក';
                 r.method = '';
@@ -374,7 +368,6 @@ window.UI = {
                 delete r.regularReceivedTime;
             });
 
-            // Reset active job delivery state
             if (window.activeJobId && window.distributionJobs) {
                 const job = window.distributionJobs.find(j => j.id === window.activeJobId);
                 if (job) {
@@ -400,6 +393,7 @@ window.UI = {
         }
     },
 
+    // 🆕 បង្ហាញ Mode Selector ជានិច្ចពេលបើក Job ឬរៀបចំផ្លូវចែក
     enterFieldMode: function(skipSelector = false) {
         if (window.activeJobId) {
             const btn = document.getElementById('btn-back-top');
@@ -408,6 +402,7 @@ window.UI = {
         document.getElementById('next-up-panel').style.display = 'block';
         
         const hasCompletedRows = (window.currentExportData || []).some(r => window.Utils.isCompletedStatus(r.status));
+        
         if (skipSelector || !hasCompletedRows) {
             if (!window.currentExportData || window.currentExportData.length === 0) {
                 window.Utils.showAlert('⚠️ គ្មានទិន្នន័យផ្លូវចែក!');
@@ -712,7 +707,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 4. CLEAR & MODE SWITCHING
+    // 4. CLEAR ALL DATA
     // ============================================================
     clearAllData: function() {
         window.currentExportData = [];
@@ -972,9 +967,6 @@ window.UI = {
         this._renderCardQueueFull();
     },
 
-    // ============================================================
-    // 5. TABLE RENDERING
-    // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
         const isDone = row.status === 'បានចែករួចរាល់'; const isSuspended = row.status === 'ផ្អាកប្រើ';
