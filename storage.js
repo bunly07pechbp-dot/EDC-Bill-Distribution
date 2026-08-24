@@ -4,11 +4,6 @@
 // All public methods maintain the same signatures as before.
 // Internal caching ensures synchronous reads (for backward compatibility).
 // Migration on first launch automatically moves data from localStorage.
-// 
-// CRITICAL SAFETY GUARDS & F5 RELOAD RECOVERY:
-// - _isInitialized flag prevents saves before data is loaded.
-// - Empty data guard blocks saveMasterCache() when masterData is empty (unless force=true).
-// - IMMUTABLE WRITING FRAME: Protects states against abrupt F5 refreshes on Mobile Safaris.
 // ==========================================================================
 
 window.StorageEngine = {
@@ -50,7 +45,6 @@ window.StorageEngine = {
     // --- Initialization & Migration ---
     init: async function() {
         console.log('🗄️ StorageEngine initializing...');
-        // 1. Check if migration is needed
         if (!localStorage.getItem(this.MIGRATION_FLAG)) {
             console.log('🔄 First launch – starting migration from localStorage to IndexedDB...');
             try {
@@ -63,55 +57,35 @@ window.StorageEngine = {
             }
         }
 
-        // 2. Load all data into caches (prefer IndexedDB, fallback to localStorage)
         await this._loadAllCaches();
-
-        // 3. Mark as initialized ONLY after data is loaded
         this._isInitialized = true;
         console.log('🗄️ StorageEngine initialized.');
 
-        // 4. Bind Global Visibility & Unload Handlers to prevent F5 data loss on Mobile Safari/PWA
         this._bindEmergencyF5Handlers();
 
-        // --- PHASE 1 FIX: Force flush on page unload with synchronous wait ---
         const boundFlush = () => {
             if (this._flushTimer) {
                 clearTimeout(this._flushTimer);
                 this._flushTimer = null;
             }
-            // Force immediate flush (synchronous as much as possible)
             this._flushImmediate();
         };
 
-        // Use both beforeunload and pagehide for maximum coverage
         window.addEventListener('beforeunload', boundFlush);
         window.addEventListener('pagehide', boundFlush);
-        
-        // Also flush on visibility change to hidden (iOS PWA)
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 boundFlush();
             }
         });
 
-        // 5. Reload Jobs from cache (ensures jobs are restored after refresh)
         setTimeout(() => {
             if (window.JobsEngine && typeof window.JobsEngine.reload === 'function') {
                 console.log('🔄 Calling JobsEngine.reload() after StorageEngine init...');
                 window.JobsEngine.reload();
-            } else {
-                console.warn('⚠️ JobsEngine not ready – will retry in 1 second.');
-                setTimeout(() => {
-                    if (window.JobsEngine && typeof window.JobsEngine.reload === 'function') {
-                        window.JobsEngine.reload();
-                    } else {
-                        console.error('❌ JobsEngine still not available.');
-                    }
-                }, 1000);
             }
         }, 100);
 
-        // 6. Restore session data & UI View
         await this.restoreSession();
         if (window.UI && typeof window.UI.restoreView === 'function') {
             window.UI.restoreView();
@@ -124,11 +98,9 @@ window.StorageEngine = {
         }
     },
 
-    // ---- Fix for Mobile F5 LifeCycle System ----
     _bindEmergencyF5Handlers: function() {
         const emergencySave = () => {
             if (this._isInitialized) {
-                // បង្ខំឱ្យសរសេរទិន្នន័យ Session ចូល LocalStorage ភ្លាមៗជាបង្អែកមុនពេល Browser បិទប៊ូតុងរត់
                 if (window.currentExportData && window.currentExportData.length > 0) {
                     const activeTab = document.getElementById('area-field')?.style.display === 'block' ? 'field' : 'setup';
                     const sessionState = {
@@ -138,7 +110,6 @@ window.StorageEngine = {
                         routeSequenceText: document.getElementById('route-sequence')?.value || '',
                         activeTab: activeTab
                     };
-                    // This is small data, safe to store in localStorage
                     try {
                         localStorage.setItem('EDC_SESSION_CACHE', JSON.stringify(sessionState));
                     } catch (e) {
@@ -152,7 +123,6 @@ window.StorageEngine = {
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') emergencySave(); });
     },
 
-    // ---- Migration ----
     _migrateFromLocalStorage: async function() {
         const db = window.DBEngine;
         if (!db || !db.isSupported()) {
@@ -211,7 +181,6 @@ window.StorageEngine = {
         console.log('✅ All data migrated to IndexedDB.');
     },
 
-    // ---- Load all caches from IndexedDB (with localStorage fallback) ----
     _loadAllCaches: async function() {
         console.log('📥 _loadAllCaches() started...');
         const db = window.DBEngine;
@@ -242,7 +211,6 @@ window.StorageEngine = {
             return null;
         };
 
-        // --- PHASE 1 FIX: Retry loading master data if IndexedDB returns empty ---
         let masterData = await loadWithFallback(db.loadMasterData(), 'EDC_MASTER_CACHE');
         if (!masterData || masterData.length === 0) {
             console.log('🔄 Master data not found in IndexedDB or localStorage, retrying in 500ms...');
@@ -281,10 +249,10 @@ window.StorageEngine = {
         const regular = await loadWithFallback(db.loadSetting('regular'), 'EDC_REGULAR_DATA');
         this._cache.regular = regular || [];
 
-        // Populate window.masterData for backward compatibility
         if (this._cache.masterData && this._cache.masterData.length) {
             window.masterData = this._cache.masterData;
             window.Utils?.rebuildMasterIndex();
+            this.syncWithCache();
             console.log(`📊 masterData loaded: ${window.masterData.length} records.`);
             if (window.Utils && typeof window.Utils.updateSystemStatus === 'function') {
                 window.Utils.updateSystemStatus('📥 ទិន្នន័យពីមុនត្រូវបានផ្ទុកឡើងវិញ', window.masterData.length);
@@ -303,9 +271,6 @@ window.StorageEngine = {
         console.log('✅ Caches loaded.');
     },
 
-    // ====================================================================
-    // MASTER DATA
-    // ====================================================================
     saveMasterCache: function(force = false) {
         if (!this._isInitialized) {
             console.warn('⚠️ saveMasterCache() called before initialization – aborting to prevent data loss.');
@@ -321,9 +286,6 @@ window.StorageEngine = {
 
         this._cache.masterData = window.masterData;
 
-        // --- PHASE 1 FIX: Conditional localStorage write ---
-        // If data fits in ~4 MB, write to localStorage as a quick F5 recovery fallback.
-        // If too large, skip localStorage to avoid QuotaExceededError.
         try {
             const serialized = JSON.stringify(window.masterData);
             const sizeInBytes = this._getSize(window.masterData);
@@ -333,17 +295,14 @@ window.StorageEngine = {
                 localStorage.setItem('EDC_MASTER_CACHE', serialized);
                 console.log(`💾 Master data (${sizeInMB.toFixed(2)} MB) saved to localStorage (fallback).`);
             } else {
-                // Too large for localStorage – remove any stale entry to free space
                 localStorage.removeItem('EDC_MASTER_CACHE');
                 console.log(`⚠️ Master data (${sizeInMB.toFixed(2)} MB) exceeds 4 MB – localStorage fallback skipped.`);
             }
         } catch (e) {
-            // If quota exceeded, just remove the key to prevent future errors
             try { localStorage.removeItem('EDC_MASTER_CACHE'); } catch (ex) {}
             console.warn('⚠️ Skipping localStorage master write (quota error or serialization issue).');
         }
 
-        // Always write to IndexedDB (primary storage)
         this._saveQueue = this._saveQueue.then(async () => {
             try {
                 if (window.DBEngine && window.DBEngine.isSupported()) {
@@ -388,9 +347,6 @@ window.StorageEngine = {
         return false;
     },
 
-    // ====================================================================
-    // SESSION CACHE
-    // ====================================================================
     saveSessionCache: function() {
         if (!this._isInitialized) {
             console.warn('⚠️ saveSessionCache() called before initialization – aborting.');
@@ -419,7 +375,6 @@ window.StorageEngine = {
         
         this._cache.session = sessionState;
         
-        // Small data, safe to store in localStorage
         try {
             localStorage.setItem('EDC_SESSION_CACHE', JSON.stringify(sessionState));
         } catch (e) {
@@ -446,9 +401,6 @@ window.StorageEngine = {
         return this._cache.session || null;
     },
 
-    // ====================================================================
-    // RESTORE SESSION
-    // ====================================================================
     restoreSession: async function() {
         const hasMaster = await this.loadMasterCache();
         if (hasMaster) {
@@ -474,15 +426,6 @@ window.StorageEngine = {
         }
     },
 
-    // ====================================================================
-    // PHASE 1: Debounced Write Throttling
-    // ====================================================================
-
-    /**
-     * Schedules a combined flush of all dirty data (master, session, history)
-     * after a 150ms quiet period. Multiple rapid calls (e.g., method clicks)
-     * are coalesced into a single write batch.
-     */
     schedulePersist: function() {
         if (this._flushTimer) {
             clearTimeout(this._flushTimer);
@@ -493,48 +436,22 @@ window.StorageEngine = {
         }, 150);
     },
 
-    /**
-     * Immediately flushes all caches to localStorage (sync) and schedules
-     * IndexedDB writes via the existing _saveQueue.
-     * This is called either by the debounced timer or by the beforeunload handler.
-     */
     _flushImmediate: function() {
-        // 1. Flush session (small)
         this.saveSessionCache();
-
-        // 2. Flush progress / history (small)
         this.saveProgress();
-
-        // 3. Flush master data (IndexedDB + conditional localStorage fallback)
         if (window.masterData && Array.isArray(window.masterData)) {
             this.saveMasterCache();
         }
 
-        // --- PHASE 1 FIX: Force IndexedDB transaction to commit ---
-        // We wait for the saveQueue to resolve, but we don't block the main thread.
-        // However, the beforeunload handler will give the browser a chance to complete
-        // pending transactions before closing.
         this._saveQueue.then(() => {
             console.log('✅ All pending writes completed.');
         });
     },
 
-    // ====================================================================
-    // PERSIST ALL (Public API)
-    // ====================================================================
-
-    /**
-     * Public API for persisting all state. 
-     * Now delegates to the debounced scheduler to prevent excessive writes.
-     * Existing callers (UI, sorting mode, imports) continue to work unchanged.
-     */
     persistAll: function() {
         this.schedulePersist();
     },
 
-    // ====================================================================
-    // HISTORY FUNCTIONS
-    // ====================================================================
     _today: function() {
         if (window.Utils && window.Utils.formatDate) return window.Utils.formatDate(new Date());
         const now = new Date();
@@ -676,7 +593,6 @@ window.StorageEngine = {
             this._cache.history = sessions;
             this._historyCache = sessions;
             
-            // Sync immediately with LocalStorage as backup for iOS
             try {
                 localStorage.setItem(this.HISTORY_STORAGE_KEY, JSON.stringify(sessions));
             } catch (e) {
@@ -695,13 +611,29 @@ window.StorageEngine = {
         return this._saveQueue;
     },
 
+    // 🆕 FULL RECONCILIATION: HISTORY + JOBS DELIVERY STATE
     syncWithCache: function() {
-        if (!window.masterData) return;
+        if (!window.masterData || window.masterData.length === 0) return;
+        
         const historyIndex = new Map();
+        
         (this._cache.history || []).forEach((session) => {
             (session.records || []).forEach((row) => {
-                historyIndex.set(String(row.invoice), row);
+                if (row.status === 'បានចែករួចរាល់' || row.status === 'ផ្អាកប្រើ') {
+                    historyIndex.set(String(row.invoice), row);
+                }
             });
+        });
+
+        const jobs = this._cache.jobs || [];
+        jobs.forEach(job => {
+            if (job.deliveryState) {
+                Object.entries(job.deliveryState).forEach(([inv, state]) => {
+                    if (state.completed) {
+                        historyIndex.set(String(inv), state);
+                    }
+                });
+            }
         });
 
         window.masterData.forEach((row) => {
@@ -755,7 +687,6 @@ window.StorageEngine = {
                 this._cache.session = { activeTab: 'field' };
             }
             
-            // Force safe persistent save to prevent dynamic wipe on refresh
             try {
                 localStorage.setItem('EDC_SESSION_CACHE', JSON.stringify(this._cache.session));
             } catch (e) {
@@ -824,9 +755,6 @@ window.StorageEngine = {
         });
     },
 
-    // ====================================================================
-    // JOBS STORAGE
-    // ====================================================================
     saveJobs: function(jobs, force = false) {
         if (!this._isInitialized && !force) {
             console.warn('⚠️ saveJobs() called before initialization – aborting to prevent data loss.');
@@ -842,7 +770,6 @@ window.StorageEngine = {
 
         this._cache.jobs = jobs || [];
         
-        // Sync immediate backup for safety against F5 reload
         try {
             localStorage.setItem('EDC_JOBS_V1', JSON.stringify(this._cache.jobs));
         } catch (e) {
@@ -879,9 +806,6 @@ window.StorageEngine = {
         return [];
     },
 
-    // ====================================================================
-    // OTHER OBJECT STORES
-    // ====================================================================
     saveArchives: function(archives) {
         this._cache.archive = archives || [];
         try {
@@ -965,7 +889,7 @@ window.StorageEngine = {
     loadRegularData: function() { return this._cache.regular || []; },
 
     // ====================================================================
-    // BACKUP & RESTORE
+    // BACKUP & RESTORE (Full Logic Preserved)
     // ====================================================================
     generateFullBackup: async function() {
         const backup = {
@@ -1000,7 +924,6 @@ window.StorageEngine = {
         await this._loadAllCaches();
     },
 
-    // ---- Clear working cache ----
     clearWorkingCache: function() {
         localStorage.removeItem('EDC_MASTER_CACHE');
         localStorage.removeItem('EDC_SESSION_CACHE');

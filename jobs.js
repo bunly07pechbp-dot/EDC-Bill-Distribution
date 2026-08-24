@@ -1,5 +1,5 @@
 // ==========================================================================
-// 📋 Distribution Jobs Module (កំណែស្ថិរភាព - ដក Sorting Mode ចេញ)
+// 📋 Distribution Jobs Module - Robust Progress & Canonical IN Reconciliation
 // ==========================================================================
 
 window.JobsEngine = {
@@ -12,6 +12,7 @@ window.JobsEngine = {
         if (this._initialized) return;
         console.log('📋 Jobs Engine initializing...');
         this.loadJobs();
+        this.reconcileAllJobs(); // 🆕 Reconstruct delivery states from all histories
         this.wireImport();
         this.renderJobsList();
 
@@ -25,10 +26,10 @@ window.JobsEngine = {
         console.log('📋 Jobs Engine initialized successfully');
     },
 
-    // 🆕 Reload method – called by StorageEngine after caches are loaded
     reload: function() {
         console.log('🔄 JobsEngine.reload() called – refreshing jobs from storage.');
         this.loadJobs();
+        this.reconcileAllJobs();
         this.renderJobsList();
     },
 
@@ -37,6 +38,7 @@ window.JobsEngine = {
             window.distributionJobs = window.StorageEngine.loadJobs() || [];
             if (window.distributionJobs) {
                 window.distributionJobs.forEach(job => {
+                    if (!job.deliveryState) job.deliveryState = {};
                     delete job._cachedProgress;
                 });
             }
@@ -58,6 +60,169 @@ window.JobsEngine = {
         } catch (e) {
             console.error('❌ ការរក្សាទុក Jobs បរាជ័យ:', e);
         }
+    },
+
+    // ============================================================
+    // 🔄 RECONCILE ALL JOBS (Restores completed state across all storage sources)
+    // ============================================================
+    reconcileAllJobs: function() {
+        if (!window.distributionJobs || window.distributionJobs.length === 0) return;
+        
+        const norm = window.Utils.normalizeIN;
+        const masterMap = new Map();
+        (window.masterData || []).forEach(r => {
+            const k = norm(r.invoice);
+            if (k) masterMap.set(k, r);
+        });
+
+        // Collect all history sessions
+        const historyMap = new Map();
+        const sessions = window.StorageEngine?._cache?.history || [];
+        sessions.forEach(session => {
+            (session.records || []).forEach(r => {
+                if (window.Utils.isCompletedStatus(r.status)) {
+                    const k = norm(r.invoice);
+                    if (k) historyMap.set(k, r);
+                }
+            });
+        });
+
+        let modified = false;
+
+        window.distributionJobs.forEach(job => {
+            if (!job.deliveryState) job.deliveryState = {};
+
+            (job.inNumbers || []).forEach(inv => {
+                const canonicalInv = norm(inv);
+                if (!canonicalInv) return;
+
+                const existingState = job.deliveryState[canonicalInv] || job.deliveryState[String(inv)];
+                const masterRow = masterMap.get(canonicalInv);
+                const historyRow = historyMap.get(canonicalInv);
+
+                // Priority 1: Existing Job Delivery State (Never Downgrade)
+                if (existingState && existingState.completed) {
+                    job.deliveryState[canonicalInv] = existingState;
+                    if (canonicalInv !== String(inv)) delete job.deliveryState[String(inv)];
+                    
+                    // Sync to master row if master row is not marked completed
+                    if (masterRow && !window.Utils.isCompletedStatus(masterRow.status)) {
+                        masterRow.status = existingState.status;
+                        masterRow.deliveredAt = existingState.deliveredAt;
+                        masterRow.method = existingState.method;
+                        modified = true;
+                    }
+                    return;
+                }
+
+                // Priority 2: Master Data Completed State
+                if (masterRow && window.Utils.isCompletedStatus(masterRow.status)) {
+                    job.deliveryState[canonicalInv] = {
+                        status: masterRow.status,
+                        deliveredAt: masterRow.deliveredAt || new Date().toISOString(),
+                        method: masterRow.method || '',
+                        completed: true
+                    };
+                    modified = true;
+                    return;
+                }
+
+                // Priority 3: Historical Session Logs
+                if (historyRow && window.Utils.isCompletedStatus(historyRow.status)) {
+                    job.deliveryState[canonicalInv] = {
+                        status: historyRow.status,
+                        deliveredAt: historyRow.deliveredAt || new Date().toISOString(),
+                        method: historyRow.method || '',
+                        completed: true
+                    };
+                    if (masterRow) {
+                        masterRow.status = historyRow.status;
+                        masterRow.deliveredAt = historyRow.deliveredAt;
+                        masterRow.method = historyRow.method;
+                    }
+                    modified = true;
+                }
+            });
+        });
+
+        if (modified) {
+            this.saveJobs();
+            if (window.StorageEngine && window.StorageEngine.saveMasterCache) {
+                window.StorageEngine.saveMasterCache();
+            }
+        }
+    },
+
+    // 🆕 Update single IN delivery state inside Active Job
+    recordDelivery: function(invoice, status, method, deliveredAt) {
+        const canonicalInv = window.Utils.normalizeIN(invoice);
+        if (!canonicalInv) return;
+
+        if (window.distributionJobs) {
+            window.distributionJobs.forEach(job => {
+                const jobInSet = new Set((job.inNumbers || []).map(i => window.Utils.normalizeIN(i)));
+                if (jobInSet.has(canonicalInv)) {
+                    if (!job.deliveryState) job.deliveryState = {};
+                    if (window.Utils.isCompletedStatus(status)) {
+                        job.deliveryState[canonicalInv] = {
+                            status: status,
+                            method: method || '',
+                            deliveredAt: deliveredAt || new Date().toISOString(),
+                            completed: true
+                        };
+                    } else if (status === 'មិនទាន់ចែក') {
+                        delete job.deliveryState[canonicalInv];
+                    }
+                    delete job._cachedProgress;
+                }
+            });
+            this.saveJobs();
+        }
+    },
+
+    computeJobProgress: function(job) {
+        if (job._cachedProgress && job._cachedProgress.timestamp > Date.now() - 3000) {
+            return job._cachedProgress;
+        }
+
+        if (!job.deliveryState) job.deliveryState = {};
+
+        const norm = window.Utils.normalizeIN;
+        let done = 0;
+        const total = job.inNumbers ? job.inNumbers.length : 0;
+        const invoiceList = job.inNumbers || [];
+        const masterMap = new Map();
+        (window.masterData || []).forEach(r => {
+            const k = norm(r.invoice);
+            if (k) masterMap.set(k, r);
+        });
+
+        invoiceList.forEach(inv => {
+            const canonicalInv = norm(inv);
+            const state = job.deliveryState[canonicalInv] || job.deliveryState[String(inv)];
+            const master = masterMap.get(canonicalInv);
+
+            if (state && state.completed) {
+                done++;
+            } else if (master && window.Utils.isCompletedStatus(master.status)) {
+                job.deliveryState[canonicalInv] = {
+                    status: master.status,
+                    method: master.method || '',
+                    deliveredAt: master.deliveredAt || new Date().toISOString(),
+                    completed: true
+                };
+                done++;
+            }
+        });
+
+        let statusLabel = 'Pending', statusClass = 'job-status-pending';
+        if (done > 0 && done < total) { statusLabel = 'In Progress'; statusClass = 'job-status-progress'; }
+        else if (total > 0 && done >= total) { statusLabel = 'Completed'; statusClass = 'job-status-done'; }
+        
+        const result = { matched: done, done, total, statusLabel, statusClass };
+        job._cachedProgress = { ...result, timestamp: Date.now() };
+        
+        return result;
     },
 
     wireImport: function() {
@@ -105,12 +270,14 @@ window.JobsEngine = {
                         id: 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
                         worksheetName: sheetName,
                         inNumbers: inNumbers,
+                        deliveryState: {},
                         createdDate: createdAt,
                         type: 'distribution'
                     });
                     createdCount++;
                 });
 
+                this.reconcileAllJobs();
                 this.saveJobs();
                 this.renderJobsList();
 
@@ -142,38 +309,16 @@ window.JobsEngine = {
         for (let i = headerRowIndex + 1; i < aoa.length; i++) {
             const row = aoa[i];
             if (!row || row.length === 0) continue;
-            const val = String(row[colInvoice] || "").trim();
-            if (val === "" || val.includes("លេខ") || val === "-") continue;
-            if (!seen.has(val)) { seen.add(val); inNumbers.push(val); }
-        }
-        return inNumbers;
-    },
-
-    computeJobProgress: function(job) {
-        if (job._cachedProgress && job._cachedProgress.timestamp > Date.now() - 5000) {
-            return job._cachedProgress;
-        }
-
-        let matched = 0, done = 0;
-        const data = window.masterData || [];
-        const invoiceSet = new Set(job.inNumbers || []);
-        
-        for (const row of data) {
-            if (invoiceSet.has(row.invoice)) {
-                matched++;
-                if (row.status === 'បានចែករួចរាល់' || row.status === 'ផ្អាកប្រើ') done++;
+            const rawVal = String(row[colInvoice] || "").trim();
+            if (rawVal === "" || rawVal.includes("លេខ") || rawVal === "-") continue;
+            
+            const canonical = window.Utils.normalizeIN(rawVal);
+            if (canonical && !seen.has(canonical)) {
+                seen.add(canonical);
+                inNumbers.push(canonical);
             }
         }
-        
-        const total = job.inNumbers ? job.inNumbers.length : 0;
-        let statusLabel = 'Pending', statusClass = 'job-status-pending';
-        if (done > 0 && done < total) { statusLabel = 'In Progress'; statusClass = 'job-status-progress'; }
-        else if (total > 0 && done === total) { statusLabel = 'Completed'; statusClass = 'job-status-done'; }
-        
-        const result = { matched, done, total, statusLabel, statusClass };
-        job._cachedProgress = { ...result, timestamp: Date.now() };
-        
-        return result;
+        return inNumbers;
     },
 
     renderJobsList: function() {
@@ -238,24 +383,17 @@ window.JobsEngine = {
             container.innerHTML = html + paginationHtml;
 
             container.querySelectorAll('.job-open-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    this.openJob(btn.dataset.jobId);
-                });
+                btn.addEventListener('click', () => this.openJob(btn.dataset.jobId));
             });
 
             container.querySelectorAll('.job-delete-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    this.deleteJob(btn.dataset.jobId);
-                });
+                btn.addEventListener('click', () => this.deleteJob(btn.dataset.jobId));
             });
 
             container.querySelectorAll('.page-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    if (btn.dataset.page === 'prev' && this.currentPage > 1) {
-                        this.currentPage--;
-                    } else if (btn.dataset.page === 'next' && this.currentPage < totalPages) {
-                        this.currentPage++;
-                    }
+                    if (btn.dataset.page === 'prev' && this.currentPage > 1) this.currentPage--;
+                    else if (btn.dataset.page === 'next' && this.currentPage < totalPages) this.currentPage++;
                     this.renderJobsList();
                 });
             });
@@ -288,7 +426,7 @@ window.JobsEngine = {
             return;
         }
 
-        const ok = window.RouteEngine.buildExportData(job.inNumbers);
+        const ok = window.RouteEngine.buildExportData(job.inNumbers, job.deliveryState);
         if (!ok) return;
 
         if (!window.currentExportData || window.currentExportData.length === 0) {
@@ -342,17 +480,7 @@ window.JobsEngine = {
         if (backToJobsBtn) backToJobsBtn.style.display = 'none';
 
         this.currentPage = 1;
-
-        const tbody = document.getElementById('table-body');
-        if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color: #94a3b8; font-size: 16px;">📭 មិនទាន់មានទិន្នន័យផ្លូវចែកទេ។</td></tr>`;
-        }
-
-        const lblCounter = document.getElementById('lbl-counter-progress');
-        if (lblCounter) lblCounter.innerText = 'ចែកបាន៖ 0/0';
-
-        const lblCabin = document.getElementById('lbl-current-cabin');
-        if (lblCabin) lblCabin.innerText = '📋 ផ្លូវជាក់ស្តែង';
+        this.renderJobsList();
 
         const areaJobs = document.getElementById('area-jobs');
         if (areaJobs) areaJobs.style.display = 'block';
@@ -372,8 +500,68 @@ window.JobsEngine = {
 };
 
 // ================================================================
-// 🚀 INITIALIZE
+// 🛠️ DEBUG REPORT FUNCTION (សម្រាប់ពិនិត្យមើល IN ដែលបាត់បង់)
 // ================================================================
+window.debugJobProgress = function(jobId) {
+    const jobs = window.distributionJobs || [];
+    const job = jobId ? jobs.find(j => j.id === jobId || j.worksheetName.includes(jobId)) : jobs[0];
+
+    if (!job) {
+        console.error('❌ Job not found.');
+        return null;
+    }
+
+    const norm = window.Utils.normalizeIN;
+    const masterMap = new Map();
+    (window.masterData || []).forEach(r => masterMap.set(norm(r.invoice), r));
+
+    const historyMap = new Map();
+    (window.StorageEngine?._cache?.history || []).forEach(s => {
+        (s.records || []).forEach(r => {
+            if (window.Utils.isCompletedStatus(r.status)) historyMap.set(norm(r.invoice), r);
+        });
+    });
+
+    const report = {
+        jobId: job.id,
+        worksheetName: job.worksheetName,
+        totalIN: job.inNumbers.length,
+        completedCount: 0,
+        pendingCount: 0,
+        missingCompletedINs: [],
+        details: []
+    };
+
+    job.inNumbers.forEach((inv, idx) => {
+        const canonical = norm(inv);
+        const state = job.deliveryState ? (job.deliveryState[canonical] || job.deliveryState[String(inv)]) : null;
+        const master = masterMap.get(canonical);
+        const history = historyMap.get(canonical);
+
+        const isCompleted = (state && state.completed) || (master && window.Utils.isCompletedStatus(master.status)) || (history && window.Utils.isCompletedStatus(history.status));
+
+        if (isCompleted) {
+            report.completedCount++;
+        } else {
+            report.pendingCount++;
+            report.missingCompletedINs.push(inv);
+            report.details.push({
+                index: idx + 1,
+                rawIN: inv,
+                canonicalIN: canonical,
+                hasState: !!state,
+                hasMaster: !!master,
+                hasHistory: !!history,
+                masterStatus: master ? master.status : 'N/A'
+            });
+        }
+    });
+
+    console.table(report.details.slice(0, 30));
+    console.log(`📊 Job "${job.worksheetName}": ${report.completedCount}/${report.totalIN} (${Math.round(report.completedCount/report.totalIN*100)}%)`);
+    return report;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     if (window.JobsEngine && typeof window.JobsEngine.init === 'function') {
         window.JobsEngine._initialized = false;

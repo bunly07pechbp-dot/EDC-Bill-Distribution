@@ -1,5 +1,5 @@
 // ==========================================================================
-// 📲 Digital Bill Report Import (កំណែ ៤ - glyph-code detection ត្រឹមត្រូវ)
+// 📲 Digital Bill Report Import (Glyph detection & Canonical IN Mapping)
 // ==========================================================================
 window.DigitalBillEngine = {
     CHECKED_CODE: 0xF0FE,
@@ -11,7 +11,6 @@ window.DigitalBillEngine = {
 
     init: function() {
         const fileInput = document.getElementById('digitalbill-file-input');
-        // 🛠️ iOS Safari Native Touch Bind Layer - លែងពឹងផ្អែកលើ JavaScript Trigger Click
         if (fileInput) {
             fileInput.addEventListener('change', this.importPdf.bind(this));
         }
@@ -57,9 +56,9 @@ window.DigitalBillEngine = {
             const rows = this._groupItemsByRow(items);
             rows.forEach((row) => {
                 const rowText = row.items.map((i) => i.str).join(' ');
-                const invMatch = rowText.match(/\b\d{6,7}\b/);
+                const invMatch = rowText.match(/\b\d{6,8}\b/);
                 if (!invMatch) return;
-                const invoice = invMatch[0];
+                const invoice = window.Utils.normalizeIN(invMatch[0]);
 
                 let printedChecked = null;
                 if (printedColX !== null) {
@@ -120,13 +119,12 @@ window.DigitalBillEngine = {
         };
 
         reader.onload = async (e) => {
-            console.log('[DigitalBill] FileReader loaded, byte length:', e.target.result?.byteLength);
             try {
                 const typedArray = new Uint8Array(e.target.result);
 
                 const loadingTask = pdfjsLib.getDocument({
                     data: typedArray,
-                    disableWorker: true,          // ✅ Run on main thread – avoids worker issues on iOS
+                    disableWorker: true,
                     useSystemFonts: true,          
                     disableFontFace: false,
                     cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
@@ -161,11 +159,13 @@ window.DigitalBillEngine = {
                 let notFoundCount = 0;
 
                 extractedRows.forEach((r) => {
-                    if (seenInvoices.has(r.invoice)) return;
-                    seenInvoices.add(r.invoice);
-                    const masterRow = window.Utils.findByInvoice(r.invoice);
+                    const canonical = window.Utils.normalizeIN(r.invoice);
+                    if (!canonical || seenInvoices.has(canonical)) return;
+                    seenInvoices.add(canonical);
+                    
+                    const masterRow = window.Utils.findByInvoice(canonical);
                     if (masterRow) {
-                        matchedEntries.push({ row: masterRow, printedChecked: r.printedChecked, columnDetected: r.columnDetected });
+                        matchedEntries.push({ row: masterRow, canonicalInvoice: canonical, printedChecked: r.printedChecked, columnDetected: r.columnDetected });
                     } else {
                         notFoundCount++;
                     }
@@ -203,7 +203,7 @@ window.DigitalBillEngine = {
 
                 const confirmMsg =
                     `📲 បានស្រង់ ${seenInvoices.size} លេខ IN ពី PDF ត្រូវគ្នា ${matchedEntries.length} ជួរ។${notFoundMsg}\n\n` +
-                    `🏷️ លក្ខខណ្ឌ១ (Digital + Printed)៖ ${condition1Entries.length} ជួរ — បន្ថែមស្លាក Digital\n` +
+                    `🏷️ លក្ខខណ្ឌ១ (Digital + Printed)៖ ${condition1Entries.length} ជួរ — បន្ថែមស្លាក Digital (រក្សាស្ថានភាពចែក)\n` +
                     `✅ លក្ខខណ្ឌ២ (Digital + មិន Printed)៖ ${condition2Entries.length} ជួរ — សម្គាល់ "បានចែករួចរាល់"${validationNote}${detectionWarning}\n\n` +
                     `អនុវត្តទេ?`;
 
@@ -211,19 +211,33 @@ window.DigitalBillEngine = {
 
                 const nowStamp = window.Utils.formatDateTime(new Date());
 
+                // Condition 1: Add digital tag, DO NOT reset delivery state
                 condition1Entries.forEach((entry) => {
                     entry.row.method = window.Utils.mergeMethod(entry.row.method, 'digital');
+                    if (window.JobsEngine && typeof window.JobsEngine.recordDelivery === 'function') {
+                        if (window.Utils.isCompletedStatus(entry.row.status)) {
+                            window.JobsEngine.recordDelivery(entry.canonicalInvoice, entry.row.status, entry.row.method, entry.row.deliveredAt || nowStamp);
+                        }
+                    }
                 });
 
+                // Condition 2: Mark as Delivered and sync with Job Engine
                 condition2Entries.forEach((entry) => {
                     entry.row.method = window.Utils.mergeMethod(entry.row.method, 'digital');
                     entry.row.status = 'បានចែករួចរាល់';
                     entry.row.deliveredAt = nowStamp;
+                    if (window.JobsEngine && typeof window.JobsEngine.recordDelivery === 'function') {
+                        window.JobsEngine.recordDelivery(entry.canonicalInvoice, 'បានចែករួចរាល់', entry.row.method, nowStamp);
+                    }
                 });
 
                 window.StorageEngine.saveMasterCache();
                 window.StorageEngine.saveProgress();
                 window.StorageEngine.loadHistoryList();
+
+                if (window.JobsEngine && typeof window.JobsEngine.renderJobsList === 'function') {
+                    window.JobsEngine.renderJobsList();
+                }
 
                 window.Utils.showAlert(
                     `✅ បានធីករួច!\n` +
@@ -233,17 +247,7 @@ window.DigitalBillEngine = {
 
             } catch (err) {
                 console.error('[DigitalBill] ❌ PDF import error:', err);
-                let detail = '';
-                if (err.message && err.message.includes('worker')) {
-                    detail = 'បញ្ហា PDF Worker (សាកល្បងប្រើ PDF តូចជាង)';
-                } else if (err.message && err.message.includes('password')) {
-                    detail = 'PDF មានពាក្យសម្ងាត់';
-                } else if (err.message && (err.message.includes('Invalid') || err.message.includes('Format'))) {
-                    detail = 'ហ្វាល់ PDF មិនត្រឹមត្រូវ';
-                } else {
-                    detail = err.message || 'មិនស្គាល់';
-                }
-                window.Utils.showAlert(`❌ ការអាន PDF បរាជ័យ! ${detail}`);
+                window.Utils.showAlert(`❌ ការអាន PDF បរាជ័យ! ${err.message || 'មិនស្គាល់'}`);
             } finally {
                 event.target.value = '';
             }

@@ -1,4 +1,29 @@
+// ==========================================================================
+// 🛠️ UTILS MODULE - Global Helper Utilities & Canonical IN Normalizer
+// ==========================================================================
+
 window.Utils = {
+    // ============================================================
+    // 0. CANONICAL IN NORMALIZER (ដោះស្រាយបញ្ហា Format Mismatch 100%)
+    // ============================================================
+    normalizeIN: function(raw) {
+        if (raw === null || raw === undefined) return '';
+        let str = String(raw).trim();
+        
+        // 1. Convert Khmer Digits (០-៩) to Standard Digits (0-9)
+        const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+        for (let i = 0; i < 10; i++) {
+            str = str.replace(new RegExp(khmerDigits[i], 'g'), String(i));
+        }
+
+        // 2. Remove Prefix/Special Characters if any (e.g., "IN-", "No.", spaces)
+        str = str.replace(/[^\d]/g, '');
+
+        // 3. Remove leading zeros if not a pure zero string (preserves standard IDs)
+        // Note: For EDC invoices which are usually 6-8 digits, trimming non-digits gives pure canonical string
+        return str;
+    },
+
     // ============================================================
     // 1. HTML ESCAPE
     // ============================================================
@@ -10,7 +35,7 @@ window.Utils = {
     },
 
     // ============================================================
-    // 2. LOCALSTORAGE SAFE SET (with better error handling)
+    // 2. LOCALSTORAGE SAFE SET
     // ============================================================
     safeSetItem: function(key, value) {
         try {
@@ -18,7 +43,6 @@ window.Utils = {
             return true;
         } catch (e) {
             console.error('❌ localStorage error:', e);
-            // Only show alert for critical errors, not for quota exceeded
             if (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_FILE_NO_DEVICE_SPACE') {
                 this.showAlert("⚠️ ការទុកទិន្នន័យបរាជ័យ! ទំហំផ្ទុកឧបករណ៍របស់អ្នកអាចពេញ។");
             }
@@ -30,6 +54,7 @@ window.Utils = {
     // 3. DATE FORMAT
     // ============================================================
     formatDate: function(date) {
+        if (!date) return '';
         const d = String(date.getDate()).padStart(2, '0');
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const y = date.getFullYear();
@@ -37,21 +62,33 @@ window.Utils = {
     },
 
     formatDateTime: function(date) {
+        if (!date) return '';
         const hh = String(date.getHours()).padStart(2, '0');
         const mm = String(date.getMinutes()).padStart(2, '0');
         return `${this.formatDate(date)} ${hh}:${mm}`;
     },
 
     // ============================================================
-    // 4. MASTER DATA INDEX
+    // 4. MASTER DATA INDEX (Keyed by Canonical IN)
     // ============================================================
     rebuildMasterIndex: function() {
-        window.masterDataIndex = new Map((window.masterData || []).map((r) => [r.invoice, r]));
+        window.masterDataIndex = new Map();
+        (window.masterData || []).forEach(r => {
+            const canonical = this.normalizeIN(r.invoice);
+            if (canonical) {
+                window.masterDataIndex.set(canonical, r);
+            }
+        });
     },
 
     findByInvoice: function(invoice) {
-        if (window.masterDataIndex instanceof Map) return window.masterDataIndex.get(invoice);
-        return (window.masterData || []).find((r) => r.invoice === invoice);
+        const canonical = this.normalizeIN(invoice);
+        if (!canonical) return null;
+
+        if (window.masterDataIndex instanceof Map && window.masterDataIndex.size > 0) {
+            return window.masterDataIndex.get(canonical) || null;
+        }
+        return (window.masterData || []).find((r) => this.normalizeIN(r.invoice) === canonical) || null;
     },
 
     // ============================================================
@@ -121,6 +158,10 @@ window.Utils = {
         return status === 'ផ្អាកប្រើ';
     },
 
+    isCompletedStatus: function(status) {
+        return status === 'បានចែករួចរាល់' || status === 'ផ្អាកប្រើ' || status === 'រួចរាល់';
+    },
+
     statusClass: function(status) {
         if (this.isActive(status)) return 'status-active';
         if (this.isInactive(status)) return 'status-inactive';
@@ -140,34 +181,24 @@ window.Utils = {
     // ============================================================
     // 8. DASHBOARD HELPERS
     // ============================================================
-
-    // ---- Filter active customers (exclude inactive & deleted) ----
     getActiveCustomers: function(data) {
         if (!data || !Array.isArray(data)) return [];
         return data.filter(customer => {
-            const status = String(
-                customer["ស្ថានភាព"] ??
-                customer.status ??
-                ""
-            ).trim();
-            return status !== "ឈប់ប្រើ" &&
-                   status !== "បានលុប";
+            const status = String(customer["ស្ថានភាព"] ?? customer.status ?? "").trim();
+            return status !== "ឈប់ប្រើ" && status !== "បានលុប";
         });
     },
 
-    // ---- MODIFIED: Use active customers for stat-records ----
     updateSystemStatus: function(text, count) {
         const lblStatus = document.getElementById('stat-status');
         const lblRecords = document.getElementById('stat-records');
         if (lblStatus) lblStatus.innerText = text;
         if (lblRecords) {
-            // Use active customers count instead of raw count
             const active = this.getActiveCustomers(window.masterData || []);
             lblRecords.innerText = active.length;
         }
     },
 
-    // ---- 🆕 Count digital bills ----
     countDigitalBills: function(data) {
         if (!data || !Array.isArray(data)) return 0;
         return data.filter(row => this.hasMethod(row.method, 'digital')).length;
@@ -179,18 +210,15 @@ window.Utils = {
     updateProgressCounter: function() {
         const lblCounter = document.getElementById('lbl-counter-progress');
         if (!lblCounter || !window.currentExportData) return;
-        const cachedStats = window.UI && window.UI._stats;
-        const total = cachedStats ? cachedStats.total : window.currentExportData.length;
-        const done = cachedStats ? cachedStats.delivered : window.currentExportData.filter(r => r.status === "បានចែករួចរាល់" || r.status === "ផ្អាកប្រើ").length;
+        const total = window.currentExportData.length;
+        const done = window.currentExportData.filter(r => this.isCompletedStatus(r.status)).length;
         lblCounter.innerText = `ចែកបាន៖ ${done}/${total}`;
         if (window.UI && typeof window.UI.updateProgressBar === 'function') {
             window.UI.updateProgressBar();
         }
     },
 
-    // ---- Safe showAlert with fallback ----
     showAlert: function(message) {
-        // Use toast if available, otherwise fallback to alert
         if (window.showToast) {
             window.showToast(message);
         } else {

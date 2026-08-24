@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🗄️ Archive & Backup Engine (Fixed – Uses StorageEngine)
+// 🗄️ Archive & Backup Engine (New Feature Module - Fixed Backup Export)
 // ==========================================================================
 window.ArchiveEngine = {
     ARCHIVE_KEY: 'EDC_MONTHLY_ARCHIVES',
@@ -23,7 +23,7 @@ window.ArchiveEngine = {
             `);
         }
 
-        // 2. Create Archive & Backup buttons (using StorageEngine)
+        // 2. Create Archive & Backup buttons
         const actionBar = document.getElementById('block-actions');
         if (actionBar && !document.getElementById('btn-close-month')) {
             actionBar.insertAdjacentHTML('beforeend', `
@@ -43,10 +43,11 @@ window.ArchiveEngine = {
         }
     },
 
-    // ---- Update Dashboard (with Digital count) ----
+    // ---- PHASE 6 FIX: Count Digital Bills too ----
     updateDashboard: function() {
         if (!window.masterData) return;
 
+        // Get active customers only (exclude ឈប់ប្រើ and បានលុប)
         const activeCustomers = window.Utils.getActiveCustomers(window.masterData);
         const total = activeCustomers.length;
 
@@ -54,9 +55,11 @@ window.ArchiveEngine = {
         let digital = 0;
 
         activeCustomers.forEach(row => {
+            // Count delivered
             if (row.status === 'បានចែករួចរាល់') {
                 delivered++;
             }
+            // Count digital bills
             if (window.Utils.hasMethod(row.method, 'digital')) {
                 digital++;
             }
@@ -75,7 +78,7 @@ window.ArchiveEngine = {
         if (elDelivered) elDelivered.innerText = delivered;
         if (elPending) elPending.innerText = pending;
         if (elProgress) elProgress.innerText = `${progress}%`;
-        if (elDigital) elDigital.innerText = digital;
+        if (elDigital) elDigital.innerText = digital; // 🆕 Update Digital count
     },
 
     // ---- Close Month ----
@@ -85,17 +88,17 @@ window.ArchiveEngine = {
             return;
         }
 
-        const monthName = prompt("សូមបញ្ចូលឈ្មោះខែដែលចង់បិទ (ឧទាហរណ៍ កក្កដា ២០២៦):");
+        const monthName = prompt("សូមបញ្ចូលឈ្មោះខែដែលចង់បិទ (ឧទាហរណ៍ កក្កដា ២០២៦) / Enter Month Name:");
         if (!monthName) return;
 
-        if (!confirm(`⚠️ តើអ្នកប្រាកដជាចង់បិទខែ "${monthName}" មែនទេ?\n\n- ទិន្នន័យទាំងអស់នឹងត្រូវបានរក្សាទុកជាប្រវត្តិ\n- ផ្ទះដែលចែករួចនឹងត្រូវបានលុបចេញ\n- ផ្ទះដែលនៅសល់នឹងត្រូវបានផ្ទេរទៅខែបន្ទាប់`)) return;
+        if (!confirm(`⚠️ តើអ្នកប្រាកដជាចង់បិទខែ "${monthName}" មែនទេ?\n\n- ទិន្នន័យទាំងអស់នឹងត្រូវបានរក្សាទុកជាប្រវត្តិ\n- ផ្ទះដែលចែករួចនឹងត្រូវបានលុបចេញ\n- ផ្ទះដែលនៅសល់នឹងត្រូវបានផ្ទេរទៅខែបន្ទាប់ (Carry Forward)`)) return;
 
         // 1. Create Archive Snapshot
         const archiveSnapshot = {
             id: `archive_${Date.now()}`,
             name: monthName,
             date: window.Utils.formatDateTime(new Date()),
-            data: window.structuredClone ? structuredClone(window.masterData) : JSON.parse(JSON.stringify(window.masterData)),
+            data: JSON.parse(JSON.stringify(window.masterData)),
             history: window.StorageEngine._cache.history || []
         };
 
@@ -122,30 +125,32 @@ window.ArchiveEngine = {
         window.Utils.showAlert(`✅ បានបិទខែ "${monthName}" រួចរាល់!\nផ្ទេរ ${pendingRecords.length} ផ្ទះដែលនៅសល់ទៅខែបន្ទាប់។`);
     },
 
-    // ---- PHASE 8: Backup using StorageEngine (Safe) ----
-    exportBackup: async function() {
+    // ---- Backup Export ----
+    exportBackup: function() {
         try {
-            console.log('📤 Starting safe backup export using StorageEngine...');
+            console.log('📤 Starting safe backup export...');
 
-            // Check if StorageEngine is available
-            if (!window.StorageEngine || typeof window.StorageEngine.generateFullBackup !== 'function') {
-                throw new Error('StorageEngine.generateFullBackup is not available. Please refresh the page.');
+            const backupData = {
+                version: 2,
+                appName: 'EDC_MANAGEMENT_SYSTEM',
+                timestamp: new Date().toISOString(),
+                localStorage: {}
+            };
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('EDC_') || key.includes('COMPANIES') || key.includes('REGULAR'))) {
+                    backupData.localStorage[key] = localStorage.getItem(key);
+                }
             }
 
-            // Generate full backup (includes ALL localStorage keys + IndexedDB)
-            const backupData = await window.StorageEngine.generateFullBackup();
-            console.log('📦 Backup data generated:', Object.keys(backupData.localStorage).length, 'keys');
-
-            // Convert to JSON string
             const jsonString = JSON.stringify(backupData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
 
-            // Create filename with timestamp
             const now = new Date();
             const dateStr = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
             const filename = `EDC_FullBackup_${dateStr}.json`;
 
-            // Download using FileSaver or fallback
             if (typeof saveAs === 'function') {
                 console.log('💾 Saving via FileSaver library');
                 saveAs(blob, filename);
@@ -171,56 +176,36 @@ window.ArchiveEngine = {
         }
     },
 
-    // ---- PHASE 8: Restore using StorageEngine (Safe) ----
+    // ---- Restore Backup ----
     importBackup: function(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        if (!confirm('⚠️ ការ Restore នឹងជំនួសទិន្នន័យបច្ចុប្បន្នទាំងអស់!\n\n✅ OK = បន្ត Restore\n❌ Cancel = បោះបង់')) {
+        if (!confirm('⚠️ ការ Restore នឹងជំនួសទិន្នន័យបច្ចុប្បន្នទាំងអស់! តើអ្នកប្រាកដជាចង់បន្ត?')) {
             event.target.value = '';
             return;
         }
 
         const reader = new FileReader();
-        reader.onload = async function(e) {
+        reader.onload = function(e) {
             try {
-                const backupData = JSON.parse(e.target.result);
-                console.log('📥 Backup data to restore:', Object.keys(backupData.localStorage || {}).length, 'keys');
-
-                // Validate required fields
-                if (!backupData.timestamp || !backupData.localStorage) {
-                    throw new Error('ហ្វាល់នេះមិនមែនជា Backup ត្រឹមត្រូវទេ!');
+                const backup = JSON.parse(e.target.result);
+                
+                if (!backup.localStorage || Object.keys(backup.localStorage).length === 0) {
+                    window.Utils.showAlert('❌ ហ្វាល់ Backup នេះមិនមានទិន្នន័យត្រឹមត្រូវទេ!');
+                    return;
                 }
 
-                // Check StorageEngine
-                if (!window.StorageEngine || typeof window.StorageEngine.restoreFullBackup !== 'function') {
-                    throw new Error('StorageEngine.restoreFullBackup is not available. Please refresh the page.');
+                localStorage.clear();
+                for (const [key, value] of Object.entries(backup.localStorage)) {
+                    localStorage.setItem(key, value);
                 }
 
-                // Restore all data
-                await window.StorageEngine.restoreFullBackup(backupData);
-
-                // Count restored master data
-                let count = 0;
-                if (backupData.localStorage && backupData.localStorage['EDC_MASTER_CACHE']) {
-                    try {
-                        const master = JSON.parse(backupData.localStorage['EDC_MASTER_CACHE']);
-                        count = Array.isArray(master) ? master.length : 0;
-                    } catch (e) {}
-                }
-
-                window.Utils.showAlert(
-                    `✅ Restore រួចរាល់!\n` +
-                    `📊 បានស្ដារ ${count} ផ្ទះ\n` +
-                    `📅 Backup: ${backupData.timestamp || 'Unknown'}`
-                );
-
-                // Reload page to reinitialize everything
+                window.Utils.showAlert('✅ Restore ទិន្នន័យជោគជ័យ! កំពុងផ្ទុកទំព័រឡើងវិញ...');
                 setTimeout(() => window.location.reload(), 1500);
-
             } catch (err) {
                 console.error('❌ Restore error:', err);
-                window.Utils.showAlert('❌ Restore បរាជ័យ: ' + err.message);
+                window.Utils.showAlert('❌ ហ្វាល់ Backup មិនត្រឹមត្រូវ ឬខូច!');
             } finally {
                 event.target.value = '';
             }

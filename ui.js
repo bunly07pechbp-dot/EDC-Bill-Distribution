@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First Overhaul (Perfect Fixed 2026)
+// 🖥️ UI MODULE - Premium Mobile-First Overhaul (Fixed Search & Full Persistence)
 // ================================================================
 
 window.UI = {
@@ -34,9 +34,7 @@ window.UI = {
     _setStoredTheme: function(theme) {
         try {
             localStorage.setItem('edc_theme_preference', theme);
-        } catch (e) {
-            // ignore
-        }
+        } catch (e) {}
     },
 
     _applyTheme: function(theme) {
@@ -71,23 +69,19 @@ window.UI = {
     init: function() {
         console.log('🖥️ UI.init() called');
         
-        // --- Apply saved theme on load ---
         const savedTheme = this._getStoredTheme();
         this._applyTheme(savedTheme);
         
-        // --- Display current month ---
         const jobMonthElement = document.getElementById('current-billing-month');
         if (jobMonthElement) {
             jobMonthElement.innerText = this._getSystemFormattedDate();
         }
         
-        // --- Clean Data Button (New Job) ---
         const cleanBtn = document.getElementById('btn-clean-data');
         if (cleanBtn) {
             cleanBtn.addEventListener('click', () => window.UI.cleanData());
         }
 
-        // --- Process Route Button ---
         const processBtn = document.getElementById('btn-process-route');
         if (processBtn) {
             const newBtn = processBtn.cloneNode(true);
@@ -126,31 +120,26 @@ window.UI = {
             });
         }
 
-        // --- Back to Setup ---
         const backSetupBtn = document.getElementById('btn-back-setup');
         if (backSetupBtn) {
             backSetupBtn.addEventListener('click', this.switchToSetupMode.bind(this));
         }
 
-        // --- Load History ---
         const loadHistoryBtn = document.getElementById('btn-load-history');
         if (loadHistoryBtn) {
             loadHistoryBtn.addEventListener('click', () => window.StorageEngine.loadSelectedHistory());
         }
 
-        // --- Clear Master Data ---
         const clearMasterBtn = document.getElementById('btn-clear-master-data');
         if (clearMasterBtn) {
             clearMasterBtn.addEventListener('click', () => window.UI.clearAllMasterData());
         }
 
-        // --- Hide Done Checkbox ---
         const chkHideDone = document.getElementById('chk-hide-done');
         if (chkHideDone) {
             chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
         }
 
-        // --- Global Search Bar (Fixed Logic for Data Array Filtering) ---
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
             this._currentSearchTerm = '';
@@ -168,12 +157,6 @@ window.UI = {
                         return;
                     }
 
-                    // បើកចូល Field Mode ស្វ័យប្រវត្តិ ប្រសិនបើកំពុងនៅផ្ទាំង Setup
-                    if (document.getElementById('area-setup') && document.getElementById('area-setup').style.display !== 'none') {
-                        this.enterFieldMode(true);
-                    }
-
-                    // ស្វែងរកទិន្នន័យក្នុង Array ដើម
                     const filteredData = window.currentExportData.filter(row => {
                         const inv = String(row.invoice || '').toLowerCase();
                         const name = String(row.name || '').toLowerCase();
@@ -211,7 +194,6 @@ window.UI = {
             this._applySearch = applySearch;
         }
 
-        // --- Jump to IN ---
         const jumpBtn = document.getElementById('btn-jump-to-in');
         const jumpInput = document.getElementById('jump-to-in-input');
         if (jumpBtn && jumpInput) {
@@ -234,44 +216,32 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // --- Table Body Click & Touch (Method Picker - Fixed for iPhone Scroll) ---
-        const tableBody = document.getElementById('table-body');
-        if (tableBody) {
-            let touchStartY = 0;
-            let isScrolling = false;
+        document.getElementById('table-body').addEventListener('click', (e) => {
+            if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
+                return;
+            }
+            const row = e.target.closest('tr[data-invoice]');
+            if (row) {
+                const invoice = row.dataset.invoice;
+                const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
+                if (idx !== -1) { this.nextUpAnchorIndex = idx; this._rebuildQueueFromAnchor(); }
+                this.openMethodPicker(invoice, row.dataset.currentMethod);
+            }
+        });
 
-            tableBody.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-                isScrolling = false;
-            }, { passive: true });
+        document.getElementById('table-body').addEventListener('touchstart', (e) => {
+            if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
+                return;
+            }
+            const row = e.target.closest('tr[data-invoice]');
+            if (row) {
+                const invoice = row.dataset.invoice;
+                const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
+                if (idx !== -1) { this.nextUpAnchorIndex = idx; this._rebuildQueueFromAnchor(); }
+                this.openMethodPicker(invoice, row.dataset.currentMethod);
+            }
+        }, { passive: true });
 
-            tableBody.addEventListener('touchmove', (e) => {
-                const touchEndY = e.touches[0].clientY;
-                if (Math.abs(touchEndY - touchStartY) > 10) {
-                    isScrolling = true;
-                }
-            }, { passive: true });
-
-            tableBody.addEventListener('click', (e) => {
-                if (isScrolling) return;
-
-                if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) {
-                    return;
-                }
-                const row = e.target.closest('tr[data-invoice]');
-                if (row) {
-                    const invoice = row.dataset.invoice;
-                    const idx = (window.currentExportData || []).findIndex(r => r.invoice === invoice);
-                    if (idx !== -1) { 
-                        this.nextUpAnchorIndex = idx; 
-                        this._rebuildQueueFromAnchor(); 
-                    }
-                    this.openMethodPicker(invoice, row.dataset.currentMethod);
-                }
-            });
-        }
-
-        // --- Method Picker Modal ---
         const modal = document.getElementById('method-picker-modal');
         if (modal) {
             modal.addEventListener('click', (e) => { if (e.target === modal) this.closeMethodPicker(); });
@@ -286,7 +256,6 @@ window.UI = {
         }
         document.getElementById('method-picker-close')?.addEventListener('click', () => this.closeMethodPicker());
 
-        // --- Next Up Cards ---
         document.getElementById('next-up-cards')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.quick-method-btn');
             if (btn) { this.commitSelection(btn.dataset.invoice, btn.dataset.method); this.updateRowMethodButton(btn.dataset.invoice); }
@@ -301,16 +270,13 @@ window.UI = {
             }
         }, { passive: false });
 
-        // --- Back Top Button ---
         document.getElementById('btn-back-top')?.addEventListener('click', () => {
             if (window.activeJobId) window.JobsEngine?.backToJobsScreen?.() || this.switchToSetupMode();
             else this.switchToSetupMode();
         });
 
-        // --- Add House UI ---
         this._initAddHouseUI();
 
-        // --- Dark Mode Toggle ---
         const themeToggleBtn = document.getElementById('btn-theme-toggle');
         if (themeToggleBtn) {
             const newBtn = themeToggleBtn.cloneNode(true);
@@ -318,21 +284,18 @@ window.UI = {
             newBtn.addEventListener('click', () => this._toggleTheme());
         }
 
-        // --- Import Trigger ---
         const importTrigger = document.getElementById('btn-import-trigger');
         const realInput = document.getElementById('excel-file-input');
         if (importTrigger && realInput) {
             importTrigger.addEventListener('click', () => realInput.click());
         }
 
-        // --- Digital Bill Import Trigger ---
         const digitalTrigger = document.getElementById('btn-digitalbill-import-trigger');
         const realDigitalInput = document.getElementById('digitalbill-file-input');
         if (digitalTrigger && realDigitalInput) {
             digitalTrigger.addEventListener('click', () => realDigitalInput.click());
         }
 
-        // --- Backup/Restore Triggers ---
         const exportJsonBtn = document.getElementById('btn-export-json');
         const importJsonBtn = document.getElementById('btn-import-json');
         const restoreFileInput = document.getElementById('restore-file-input');
@@ -377,14 +340,9 @@ window.UI = {
         console.log('✅ UI.init() completed');
     },
 
-    // ============================================================
-    // 2. ADD HOUSE UI
-    // ============================================================
     _initAddHouseUI: function() {
         const container = document.getElementById('area-field');
-        if (!container) return;
-
-        if (document.getElementById('btn-add-house')) return;
+        if (!container || document.getElementById('btn-add-house')) return;
 
         const addBtn = document.createElement('button');
         addBtn.id = 'btn-add-house';
@@ -603,9 +561,6 @@ window.UI = {
         this.updateProgressBar();
     },
 
-    // ============================================================
-    // 3. CLEAR / PROGRESS
-    // ============================================================
     clearAllData: function() {
         window.currentExportData = [];
         if (window.masterDataIndex instanceof Map) { window.masterDataIndex.clear(); window.masterDataIndex = null; }
@@ -665,9 +620,6 @@ window.UI = {
         if(mainPercentage) mainPercentage.innerText = percentString;
     },
 
-    // ============================================================
-    // 4. SWITCH MODES
-    // ============================================================
     switchToSetupMode: function() {
         if (window.SortingMode && typeof window.SortingMode.close === 'function') {
             window.SortingMode.close();
@@ -705,7 +657,7 @@ window.UI = {
             }
             this._enterFieldModeReal();
         } else {
-            this._showModeSelector();
+            this._enterFieldModeReal();
         }
     },
 
@@ -737,48 +689,6 @@ window.UI = {
         window.StorageEngine.saveSessionCache();
     },
 
-    _showModeSelector: function() { this._injectModeSelectorUI(); document.getElementById('mode-selector-overlay')?.classList.add('active'); },
-    _closeModeSelector: function() { document.getElementById('mode-selector-overlay')?.classList.remove('active'); },
-    _injectModeSelectorUI: function() {
-        if (document.getElementById('mode-selector-overlay')) return;
-        document.body.insertAdjacentHTML('beforeend', `
-            <div id="mode-selector-overlay" class="method-picker-overlay">
-                <div class="method-picker-sheet">
-                    <div class="method-picker-handle"></div>
-                    <div class="method-picker-header"><span>📋 ជ្រើសរើសរបៀប</span><button type="button" id="mode-selector-close" class="method-picker-close">✕</button></div>
-                    <p class="method-picker-name">តើអ្នកចង់បន្តការចែកជុំមុន ឬចាប់ផ្តើមជុំថ្មី?</p>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <button type="button" id="mode-selector-continue" class="btn btn-primary" style="width:100%;">🔄 បន្តការចែកជុំមុន</button>
-                        <button type="button" id="mode-selector-reset" class="btn btn-warning" style="width:100%;">🆕 ចាប់ផ្តើមជុំថ្មី (Reset)</button>
-                        <button type="button" id="mode-selector-cancel" class="btn btn-slate" style="width:100%;">បោះបង់</button>
-                    </div>
-                </div>
-            </div>
-        `);
-        document.getElementById('mode-selector-close').addEventListener('click', () => this._closeModeSelector());
-        document.getElementById('mode-selector-cancel').addEventListener('click', () => this._closeModeSelector());
-        document.getElementById('mode-selector-continue').addEventListener('click', () => {
-            this._closeModeSelector();
-            this._enterFieldModeReal();
-        });
-        document.getElementById('mode-selector-reset').addEventListener('click', () => {
-            if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពទាំងអស់ក្នុងផ្លូវនេះទៅ "មិនទាន់ចែក" វិញ?')) {
-                (window.currentExportData || []).forEach(r => {
-                    r.status = 'មិនទាន់ចែក';
-                    r.method = '';
-                    delete r.deliveredAt;
-                });
-                window.StorageEngine.saveMasterCache();
-                this._closeModeSelector();
-                this._enterFieldModeReal();
-                window.Utils.showAlert('✅ បានកំណត់ស្ថានភាពឡើងវិញទាំងអស់!');
-            }
-        });
-    },
-
-    // ============================================================
-    // 5. METHOD PICKER
-    // ============================================================
     methodLabel: function(method) { return window.Utils.methodLabel(method); },
 
     openMethodPicker: function(invoice, currentMethod) {
@@ -823,9 +733,6 @@ window.UI = {
         if (row) row.dataset.currentMethod = method;
     },
 
-    // ============================================================
-    // 6. COMMIT SELECTION
-    // ============================================================
     commitSelection: function(invoice, method) {
         if (window.isHistoryView) return;
         
@@ -852,6 +759,10 @@ window.UI = {
             rec.regularReceivedTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
         }
         
+        if (window.JobsEngine && typeof window.JobsEngine.recordDelivery === 'function') {
+            window.JobsEngine.recordDelivery(invoice, rec.status, rec.method, rec.deliveredAt);
+        }
+
         window.StorageEngine.persistAll();
 
         if (!wasDone && this._stats) {
@@ -878,9 +789,6 @@ window.UI = {
         }
     },
 
-    // ============================================================
-    // 7. RENDER NEXT UP
-    // ============================================================
     renderNextUpPanel: function() {
         this._cardQueue = [];
         this._queueCursor = this.nextUpAnchorIndex;
@@ -965,7 +873,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 8. TABLE RENDER
+    // 8. TABLE RENDER (Virtual Scrolling Compatible)
     // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
