@@ -117,7 +117,6 @@
         <!-- Quick Actions -->
         <div class="action-bar" id="block-actions" style="display: flex; flex-direction: column; gap: 10px; background: none; border: none; padding: 0;">
             
-            <!-- Safe iOS Overlay Layout for Excel Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" multiple style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-import-trigger" style="min-height: 54px; font-size: 16px; border-radius: var(--radius); width: 100%;">
@@ -147,7 +146,6 @@
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px;">
                         <button class="btn" id="btn-export-json" style="background:#0d9488; min-height: 46px; font-size: 13px;">💾 Backup (Export)</button>
                         
-                        <!-- Safe iOS Overlay Layout for JSON Input -->
                         <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                             <input type="file" id="restore-file-input" accept=".json" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                             <button class="btn" id="btn-import-json" style="background:#475569; min-height: 46px; font-size: 13px; width: 100%;">📂 Restore (Import)</button>
@@ -175,7 +173,6 @@
     <!-- JOBS SCREEN -->
     <div class="jobs-screen" id="area-jobs" style="display:none;">
         <div class="jobs-import-bar" style="margin-bottom: 12px;">
-            <!-- Safe iOS Overlay Layout for Workbook Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="jobs-file-input" accept=".xlsx, .xls" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-jobs-import-trigger" style="width: 100%;">📥 នាំចូល Workbook (Multi-sheet)</button>
@@ -184,7 +181,6 @@
         </div>
         
         <div class="jobs-import-bar" style="margin-bottom: 16px;">
-            <!-- Safe iOS Overlay Layout for PDF Input -->
             <div style="position: relative; display: inline-block; width: 100%; overflow: hidden;">
                 <input type="file" id="digitalbill-file-input" accept=".pdf" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
                 <button class="btn btn-primary" id="btn-digitalbill-import-trigger" style="background:#7c3aed; width: 100%;">📲 នាំចូល Digital Bill (PDF)</button>
@@ -211,7 +207,7 @@
             <p style="color: var(--text-secondary); font-size: 14px;">វិភាគទិន្នន័យ និងប្រើប្រាស់មុខងារស្វ័យប្រវត្តិកម្ម</p>
         </div>
 
-        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស (Form សាមញ្ញ: សល់តែ ប្រអប់លេខ IN និង ប៊ូតុងកត់ត្រា) -->
+        <!-- 🖨️ បញ្ជីវិក្កយបត្រខ្វះ/ខូចក្រដាស (សល់តែ ប្រអប់លេខ IN និង ប៊ូតុងកត់ត្រា) -->
         <div class="analytics-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                 <div>
