@@ -9,21 +9,31 @@ window.UI = {
     _stats: null,
     CARD_QUEUE_SIZE: 3,
 
-    // 🛑 ដកចេញនូវ Virtual Render ដែលបង្កបញ្ហាលេខ ១៣
+    VIRTUALIZE_THRESHOLD: 150,
+    ROW_HEIGHT_ESTIMATE: 64,
+    BUFFER_ROWS: 12,
     _searchActive: false,
+    _vFilteredRows: null,
+    _vScrollHandler: null,
+    _vContainer: null,
+
     _currentSearchTerm: '',
     _applySearch: null,
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
     _getStoredTheme: function() {
-        try { return localStorage.getItem('edc_theme_preference') || 'light'; } 
-        catch (e) { return 'light'; }
+        try {
+            return localStorage.getItem('edc_theme_preference') || 'light';
+        } catch (e) {
+            return 'light';
+        }
     },
 
     _setStoredTheme: function(theme) {
-        try { localStorage.setItem('edc_theme_preference', theme); } 
-        catch (e) {}
+        try {
+            localStorage.setItem('edc_theme_preference', theme);
+        } catch (e) {}
     },
 
     _applyTheme: function(theme) {
@@ -62,10 +72,14 @@ window.UI = {
         this._applyTheme(savedTheme);
         
         const jobMonthElement = document.getElementById('current-billing-month');
-        if (jobMonthElement) jobMonthElement.innerText = this._getSystemFormattedDate();
+        if (jobMonthElement) {
+            jobMonthElement.innerText = this._getSystemFormattedDate();
+        }
         
         const cleanBtn = document.getElementById('btn-clean-data');
-        if (cleanBtn) cleanBtn.addEventListener('click', () => window.UI.cleanData());
+        if (cleanBtn) {
+            cleanBtn.addEventListener('click', () => window.UI.cleanData());
+        }
 
         const processBtn = document.getElementById('btn-process-route');
         if (processBtn) {
@@ -99,19 +113,29 @@ window.UI = {
         }
 
         const newCycleBtn = document.getElementById('btn-start-new-cycle');
-        if (newCycleBtn) newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
+        if (newCycleBtn) {
+            newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
+        }
 
         const backSetupBtn = document.getElementById('btn-back-setup');
-        if (backSetupBtn) backSetupBtn.addEventListener('click', this.switchToSetupMode.bind(this));
+        if (backSetupBtn) {
+            backSetupBtn.addEventListener('click', this.switchToSetupMode.bind(this));
+        }
 
         const loadHistoryBtn = document.getElementById('btn-load-history');
-        if (loadHistoryBtn) loadHistoryBtn.addEventListener('click', () => window.StorageEngine.loadSelectedHistory());
+        if (loadHistoryBtn) {
+            loadHistoryBtn.addEventListener('click', () => window.StorageEngine.loadSelectedHistory());
+        }
 
         const clearMasterBtn = document.getElementById('btn-clear-master-data');
-        if (clearMasterBtn) clearMasterBtn.addEventListener('click', () => window.UI.clearAllMasterData());
+        if (clearMasterBtn) {
+            clearMasterBtn.addEventListener('click', () => window.UI.clearAllMasterData());
+        }
 
         const chkHideDone = document.getElementById('chk-hide-done');
-        if (chkHideDone) chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
+        if (chkHideDone) {
+            chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
+        }
 
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
@@ -180,7 +204,9 @@ window.UI = {
 
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
-            let touchStartX = 0; let touchStartY = 0; let isScrolling = false;
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isScrolling = false;
 
             tableBody.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1) {
@@ -194,7 +220,9 @@ window.UI = {
                 if (e.touches.length === 1) {
                     const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
                     const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-                    if (deltaX > 8 || deltaY > 8) isScrolling = true;
+                    if (deltaX > 8 || deltaY > 8) {
+                        isScrolling = true;
+                    }
                 }
             }, { passive: true });
 
@@ -256,15 +284,21 @@ window.UI = {
 
         const importTrigger = document.getElementById('btn-import-trigger');
         const realInput = document.getElementById('excel-file-input');
-        if (importTrigger && realInput) importTrigger.addEventListener('click', () => realInput.click());
+        if (importTrigger && realInput) {
+            importTrigger.addEventListener('click', () => realInput.click());
+        }
 
         const digitalTrigger = document.getElementById('btn-digitalbill-import-trigger');
         const realDigitalInput = document.getElementById('digitalbill-file-input');
-        if (digitalTrigger && realDigitalInput) digitalTrigger.addEventListener('click', () => realDigitalInput.click());
+        if (digitalTrigger && realDigitalInput) {
+            digitalTrigger.addEventListener('click', () => realDigitalInput.click());
+        }
 
         const importJsonBtn = document.getElementById('btn-import-json');
         const restoreFileInput = document.getElementById('restore-file-input');
-        if (importJsonBtn && restoreFileInput) importJsonBtn.addEventListener('click', () => restoreFileInput.click());
+        if (importJsonBtn && restoreFileInput) {
+            importJsonBtn.addEventListener('click', () => restoreFileInput.click());
+        }
 
         // Regular Fields listener
         document.addEventListener('change', function(e) {
@@ -321,20 +355,26 @@ window.UI = {
 
         if (confirm(msg)) {
             window.masterData.forEach(r => {
-                r.status = 'មិនទាន់ចែក'; r.method = '';
-                delete r.deliveredAt; delete r.regularReceivedTime;
+                r.status = 'មិនទាន់ចែក';
+                r.method = '';
+                delete r.deliveredAt;
+                delete r.regularReceivedTime;
             });
 
             (window.currentExportData || []).forEach(r => {
-                r.status = 'មិនទាន់ចែក'; r.method = '';
-                delete r.deliveredAt; delete r.regularReceivedTime;
+                r.status = 'មិនទាន់ចែក';
+                r.method = '';
+                delete r.deliveredAt;
+                delete r.regularReceivedTime;
             });
 
             if (window.activeJobId && window.distributionJobs) {
                 const job = window.distributionJobs.find(j => j.id === window.activeJobId);
                 if (job) {
-                    job.deliveryState = {}; delete job._cachedProgress;
-                    window.JobsEngine?.saveJobs?.(); window.JobsEngine?.renderJobsList?.();
+                    job.deliveryState = {};
+                    delete job._cachedProgress;
+                    window.JobsEngine?.saveJobs?.();
+                    window.JobsEngine?.renderJobsList?.();
                 }
             }
 
@@ -413,16 +453,20 @@ window.UI = {
         document.getElementById('mode-selector-reset')?.addEventListener('click', () => {
             if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពគ្រប់ផ្ទះក្នុងផ្លូវនេះទៅជា "មិនទាន់ចែក" សម្រាប់ជុំថ្មីមែនទេ?')) {
                 (window.currentExportData || []).forEach(r => {
-                    r.status = 'មិនទាន់ចែក'; r.method = '';
-                    delete r.deliveredAt; delete r.regularReceivedTime;
+                    r.status = 'មិនទាន់ចែក';
+                    r.method = '';
+                    delete r.deliveredAt;
+                    delete r.regularReceivedTime;
                 });
 
                 window.StorageEngine.saveMasterCache();
                 if (window.activeJobId && window.JobsEngine) {
                     const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
                     if (job) {
-                        job.deliveryState = {}; delete job._cachedProgress;
-                        window.JobsEngine.saveJobs(); window.JobsEngine.renderJobsList();
+                        job.deliveryState = {};
+                        delete job._cachedProgress;
+                        window.JobsEngine.saveJobs();
+                        window.JobsEngine.renderJobsList();
                     }
                 }
 
@@ -447,7 +491,9 @@ window.UI = {
         document.getElementById('lbl-current-cabin').innerText = `📋 ផ្លូវជាក់ស្តែងកាប៊ីន៖ ${cabin}`;
         
         const jobMonthElement = document.getElementById('current-billing-month');
-        if (jobMonthElement) jobMonthElement.innerText = this._getSystemFormattedDate();
+        if (jobMonthElement) {
+            jobMonthElement.innerText = this._getSystemFormattedDate();
+        }
 
         const sBox = document.getElementById('search-invoice');
         if(sBox) sBox.value = '';
@@ -463,11 +509,204 @@ window.UI = {
     // 3. ADD HOUSE MODAL
     // ============================================================
     _initAddHouseUI: function() {
-        // Keeps modal UI initializations unchanged
+        const container = document.getElementById('area-field');
+        if (!container || document.getElementById('btn-add-house')) return;
+
+        const addBtn = document.createElement('button');
+        addBtn.id = 'btn-add-house';
+        addBtn.className = 'btn btn-success';
+        addBtn.style.marginTop = '10px';
+        addBtn.style.width = '100%';
+        addBtn.innerHTML = '➕ បន្ថែមផ្ទះថ្មី';
+        container.appendChild(addBtn);
+
+        addBtn.addEventListener('click', () => this.openAddHouseModal());
+
+        if (!document.getElementById('add-house-modal')) {
+            const modalHtml = `
+                <div class="method-picker-overlay" id="add-house-modal" style="display:none; z-index: 9999;">
+                    <div class="method-picker-sheet" style="max-width: 500px; padding-bottom: 30px;">
+                        <div class="method-picker-handle"></div>
+                        <div class="method-picker-header">
+                            <span id="add-house-title">➕ បន្ថែមផ្ទះថ្មី</span>
+                            <button type="button" class="method-picker-close" id="add-house-close">✕</button>
+                        </div>
+                        <div id="add-house-step1">
+                            <p style="margin-bottom:12px; color:var(--text-secondary); font-size:14px;">បញ្ចូលលេខ IN ដែលមានស្រាប់ ដើម្បីស្វែងរកទិន្នន័យពី Master Data</p>
+                            <input type="text" id="add-house-search-input" placeholder="លេខ IN..." style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px; margin-bottom:12px;">
+                            <div style="display:flex; gap:10px;">
+                                <button type="button" id="add-house-search-btn" class="btn btn-primary" style="flex:1;">🔍 ស្វែងរក</button>
+                                <button type="button" id="add-house-skip-btn" class="btn btn-slate" style="flex:1;">⏭️ រំលង</button>
+                            </div>
+                            <div id="add-house-search-status" style="margin-top:8px; font-size:13px; min-height:20px;"></div>
+                        </div>
+                        <div id="add-house-step2" style="display:none;">
+                            <p style="margin-bottom:12px; color:var(--text-secondary); font-size:14px;">បំពេញព័ត៌មានផ្ទះថ្មី</p>
+                            <div style="margin-bottom:8px;">
+                                <label style="font-weight:700; font-size:13px;">លេខ IN *</label>
+                                <input type="text" id="add-house-invoice" placeholder="លេខ IN..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <label style="font-weight:700; font-size:13px;">ឈ្មោះអតិថិជន *</label>
+                                <input type="text" id="add-house-name" placeholder="ឈ្មោះ..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                            </div>
+                            <div style="display:flex; gap:10px; margin-bottom:8px;">
+                                <div style="flex:1;">
+                                    <label style="font-weight:700; font-size:13px;">ប្រអប់</label>
+                                    <input type="text" id="add-house-box" placeholder="ប្រអប់..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="font-weight:700; font-size:13px;">កាប៊ីន</label>
+                                    <input type="text" id="add-house-cabin" placeholder="កាប៊ីន..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <label style="font-weight:700; font-size:13px;">អាសយដ្ឋាន</label>
+                                <input type="text" id="add-house-address" placeholder="អាសយដ្ឋាន..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                            </div>
+                            <div style="margin-bottom:12px;">
+                                <label style="font-weight:700; font-size:13px;">បញ្ចូលបន្ទាប់ពីលេខ IN *</label>
+                                <input type="text" id="add-house-after-in" placeholder="លេខ IN ដែលចង់បញ្ចូលបន្ទាប់..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                            </div>
+                            <div style="display:flex; gap:10px;">
+                                <button type="button" id="add-house-back-btn" class="btn btn-slate" style="flex:1;">⬅️ ត្រឡប់</button>
+                                <button type="button" id="add-house-save-btn" class="btn btn-success" style="flex:1;">💾 រក្សាទុក</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            document.getElementById('add-house-close')?.addEventListener('click', () => this.closeAddHouseModal());
+            document.getElementById('add-house-skip-btn')?.addEventListener('click', () => {
+                document.getElementById('add-house-step1').style.display = 'none';
+                document.getElementById('add-house-step2').style.display = 'block';
+                document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ដោយដៃ)';
+            });
+            document.getElementById('add-house-search-btn')?.addEventListener('click', () => this._addHouseStep1());
+            document.getElementById('add-house-back-btn')?.addEventListener('click', () => {
+                document.getElementById('add-house-step1').style.display = 'block';
+                document.getElementById('add-house-step2').style.display = 'none';
+                document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី';
+            });
+            document.getElementById('add-house-save-btn')?.addEventListener('click', () => this._addHouseConfirm());
+        }
+    },
+
+    openAddHouseModal: function() {
+        const modal = document.getElementById('add-house-modal');
+        if (!modal) return;
+        document.getElementById('add-house-step1').style.display = 'block';
+        document.getElementById('add-house-step2').style.display = 'none';
+        document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី';
+        document.getElementById('add-house-search-input').value = '';
+        document.getElementById('add-house-search-status').textContent = '';
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+        setTimeout(() => document.getElementById('add-house-search-input').focus(), 300);
+    },
+
+    closeAddHouseModal: function() {
+        const modal = document.getElementById('add-house-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    },
+
+    _addHouseStep1: function() {
+        const searchIn = document.getElementById('add-house-search-input').value.trim();
+        const statusEl = document.getElementById('add-house-search-status');
+        if (!searchIn) {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = '⚠️ សូមបញ្ចូលលេខ IN!';
+            return;
+        }
+
+        const found = window.Utils.findByInvoice(searchIn);
+        if (found) {
+            this._addHouseState.foundRecord = found;
+            statusEl.style.color = '#16a34a';
+            statusEl.textContent = `✅ រកឃើញ៖ ${found.name} (${found.box})`;
+            document.getElementById('add-house-invoice').value = '';
+            document.getElementById('add-house-name').value = found.name || '';
+            document.getElementById('add-house-box').value = found.box || '';
+            document.getElementById('add-house-cabin').value = found.cabin || '';
+            document.getElementById('add-house-address').value = found.address || '';
+            document.getElementById('add-house-after-in').value = '';
+            document.getElementById('add-house-step1').style.display = 'none';
+            document.getElementById('add-house-step2').style.display = 'block';
+            document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ចម្លងពី IN ចាស់)';
+        } else {
+            statusEl.style.color = '#f59e0b';
+            statusEl.textContent = 'ℹ️ រកមិនឃើញ IN នេះ! សូមបំពេញដោយដៃ។';
+            document.getElementById('add-house-step1').style.display = 'none';
+            document.getElementById('add-house-step2').style.display = 'block';
+            document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ដោយដៃ)';
+        }
+    },
+
+    _addHouseConfirm: function() {
+        const invoice = document.getElementById('add-house-invoice').value.trim();
+        const name = document.getElementById('add-house-name').value.trim();
+        const box = document.getElementById('add-house-box').value.trim();
+        const cabin = document.getElementById('add-house-cabin').value.trim();
+        const address = document.getElementById('add-house-address').value.trim();
+        const afterIn = document.getElementById('add-house-after-in').value.trim();
+
+        if (!invoice || !name || !afterIn) {
+            window.Utils.showAlert('⚠️ សូមបំពេញលេខ IN, ឈ្មោះ និងទីតាំងបញ្ចូល!');
+            return;
+        }
+
+        const canonicalInv = window.Utils.normalizeIN(invoice);
+        const canonicalAfter = window.Utils.normalizeIN(afterIn);
+
+        if (window.currentExportData.some(r => window.Utils.normalizeIN(r.invoice) === canonicalInv)) {
+            window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុងផ្លូវនេះ!`);
+            return;
+        }
+
+        if (window.Utils.findByInvoice(invoice)) {
+            window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុង Master Data!`);
+            return;
+        }
+
+        const refIndex = window.currentExportData.findIndex(r => window.Utils.normalizeIN(r.invoice) === canonicalAfter);
+        if (refIndex === -1) {
+            window.Utils.showAlert(`⚠️ រកមិនឃើញលេខ IN "${afterIn}" ក្នុងផ្លូវបច្ចុប្បន្ន!`);
+            return;
+        }
+
+        const newHouse = {
+            id: (window.masterData ? window.masterData.length : 0) + 1,
+            invoice: invoice,
+            name: name || 'មិនមានឈ្មោះ',
+            box: box || 'N/A',
+            cabin: cabin || window.currentCabinGlobal || 'N/A',
+            address: address || 'មិនមានអាសយដ្ឋាន',
+            status: 'មិនទាន់ចែក',
+            method: '',
+            deliveredAt: '',
+            source: 'manual_insert'
+        };
+
+        window.masterData.push(newHouse);
+        window.Utils.rebuildMasterIndex();
+        window.currentExportData.splice(refIndex + 1, 0, newHouse);
+
+        window.StorageEngine.persistAll();
+        this.closeAddHouseModal();
+        window.Utils.showAlert(`✅ បានបន្ថែមផ្ទះថ្មី (IN ${invoice}) រួចរាល់!`);
+        
+        this.renderTable(window.currentExportData);
+        this.renderNextUpPanel();
+        this.updateProgressBar();
     },
 
     // ============================================================
-    // 4. DATA BUILDERS
+    // 4. DATA BUILDERS & HTML GENERATION
     // ============================================================
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
@@ -548,6 +787,9 @@ window.UI = {
         theadHTML += `</tr>`;
         thead.innerHTML = theadHTML;
 
+        // 🛑 សម្អាតវ៉ាល់ Virtual Render ចាស់ ដើម្បីរំដោះការគាំង Limit 13 
+        this._teardownVirtualRender();
+
         if (!data || data.length === 0) { 
             tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
             return; 
@@ -568,10 +810,9 @@ window.UI = {
 
         tbody.innerHTML = ''; 
 
-        // 🚀 PROGRESSIVE RENDER: Render ទិន្នន័យ 300 ទៅ 500 ផ្ទះដោយមិនគាំង
-        // លែងប្រើ Virtual Render ដែលកាត់សល់ 13 ជួរទៀតហើយ
+        // 🚀 PROGRESSIVE BATCH RENDER (លែងមានបញ្ហាកាត់ទិន្នន័យសល់ 13 ជួរ)
         let currentIndex = 0;
-        const CHUNK_SIZE = 30; // គូរ 30 ជួរម្តងៗក្នុង 1 Frame ធានាថា Data ចេញមកពេញ 100%
+        const CHUNK_SIZE = 30;
 
         const renderChunk = () => {
             let html = '';
@@ -590,6 +831,23 @@ window.UI = {
         };
 
         requestAnimationFrame(renderChunk);
+    },
+
+    _teardownVirtualRender: function() {
+        if (this._vScrollHandler && this._vContainer) {
+            this._vContainer.removeEventListener('scroll', this._vScrollHandler);
+            this._vScrollHandler = null;
+        }
+        this._vContainer = null;
+        this._vFilteredRows = null;
+    },
+
+    _setupVirtualRender: function(rows) {
+        // Disabled: ជំនួសដោយ Progressive Batch Rendering រួចរាល់
+    },
+
+    _renderVirtualWindow: function(container) {
+        // Disabled
     },
 
     // ============================================================
@@ -622,6 +880,7 @@ window.UI = {
         if (window.masterDataIndex instanceof Map) { window.masterDataIndex.clear(); window.masterDataIndex = null; }
         const tbody = document.getElementById('table-body');
         if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
+        this._teardownVirtualRender();
         document.getElementById('next-up-cards').innerHTML = '';
         this._cardQueue = []; this._queueCursor = 0; this._stats = null; this.nextUpAnchorIndex = 0;
         document.getElementById('next-up-panel').style.display = 'none';
@@ -647,6 +906,7 @@ window.UI = {
         document.getElementById('lbl-counter-progress').innerText = 'ចែកបាន៖ 0/0';
         document.getElementById('progress-bar-fill').style.width = '0%';
         document.getElementById('btn-back-top').style.display = 'none';
+        this._teardownVirtualRender();
         if (window.SortingMode && typeof window.SortingMode.close === 'function') {
             window.SortingMode.close();
         }
