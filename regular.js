@@ -3,6 +3,7 @@
 // --------------------------------------------------------------------------
 // Fix: Guaranteed Unique IDs (Solves 13-tick limit / overwriting)
 // Fix: Progressive Rendering (Solves >150 items 13-row bug)
+// Fix: Targeted DOM Update (Solves Scroll Jumping when ticking)
 // ==========================================================================
 
 window.RegularEngine = {
@@ -17,7 +18,7 @@ window.RegularEngine = {
     _vContainer: null,
     VIRTUALIZE_THRESHOLD: 150,
 
-    // 🚀 1. SUPER UNIQUE ID GENERATOR (ការពារការជាន់ ID លេខ 13)
+    // 🚀 1. SUPER UNIQUE ID GENERATOR (ការពារការជាន់ ID)
     _generateUniqueId: function(index = 0) {
         return 'reg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10) + '_' + index;
     },
@@ -48,7 +49,7 @@ window.RegularEngine = {
             if (Array.isArray(raw)) {
                 raw.forEach((r, idx) => {
                     let rec = this._normalizeRecord(r, idx);
-                    // 🛠️ Auto-Heal: ប្រសិនបើ ID ជាន់គ្នាពីមុន យើងបង្កើតថ្មីភ្លាមៗដើម្បីឱ្យអាចធីកបានគ្រប់គ្នា
+                    // 🛠️ Auto-Heal: ប្រសិនបើ ID ជាន់គ្នា យើងបង្កើតថ្មី
                     if (seenIds.has(rec.id)) {
                         rec.id = this._generateUniqueId(idx);
                     }
@@ -314,10 +315,10 @@ window.RegularEngine = {
             const id = row.dataset.id;
             if (!id) return;
 
-            // 🔍 ស្វែងរកតាម String(ID) ដើម្បីការពារ Type Casting Bug
             const record = this._data.find(r => String(r.id) === String(id));
             if (!record) return;
 
+            // 🚀 TARGETED DOM UPDATE: កែប្រែតែជួរដែលបានធីក ការពារការលោត Scroll ទៅលើវិញ
             if (target.classList.contains('r-method-btn')) {
                 const method = target.dataset.method;
                 if (record.method === method) {
@@ -331,7 +332,32 @@ window.RegularEngine = {
                 }
                 record.updatedAt = new Date().toISOString();
                 this.saveData();
-                this.renderAll();
+                this.renderStats(); // Update តែតួលេខសរុបខាងលើ
+
+                const hideDelivered = document.getElementById('regular-hide-delivered')?.checked;
+                if (hideDelivered && record.deliveredAt) {
+                    row.remove(); // បើគេធីក "លាក់អ្នកចែករួច" គឺលុបជួរនេះចេញពីអេក្រង់
+                } else {
+                    // Update ពណ៌ប៊ូតុងដោយផ្ទាល់
+                    const methodIcons = { 'ប្រអប់': '📦', 'សន្តិសុខ': '👮', 'បុគ្គលិក': '🧑‍🏫', 'ម្ចាស់ទីតាំង': '🏠' };
+                    const methodOptions = Object.keys(methodIcons);
+                    const esc = window.Utils.escapeHtml.bind(window.Utils);
+                    const btnContainer = row.querySelector('.r-method-buttons');
+                    
+                    if (btnContainer) {
+                        btnContainer.innerHTML = methodOptions.map(m => {
+                            const active = record.method === m ? 'method-active' : '';
+                            const icon = methodIcons[m] || m;
+                            return `<button type="button" class="r-method-btn ${active}" data-method="${esc(m)}" title="${esc(m)}">${icon}</button>`;
+                        }).join('');
+                    }
+                    
+                    // Update ម៉ោង
+                    const timeDisplay = row.querySelector('.r-time-display');
+                    if (timeDisplay) {
+                        timeDisplay.textContent = record.deliveredAt ? new Date(record.deliveredAt).toLocaleString() : '';
+                    }
+                }
                 return;
             }
 
@@ -602,7 +628,7 @@ window.RegularEngine = {
         document.getElementById('rstat-methods').textContent = methodSummary;
     },
 
-    // 🚀 2. Progressive Batch Rendering (ជំនួស Virtual Render ចាស់ចោល)
+    // 🚀 2. Progressive Batch Rendering
     renderTable: function() {
         const tbody = document.getElementById('regular-tbody');
         const mobileContainer = document.getElementById('regular-mobile-container');
@@ -641,16 +667,13 @@ window.RegularEngine = {
         };
         const methodOptions = Object.keys(methodIcons);
 
-        // បិទ Virtual Render ចាស់ដែលបង្ក Bug 13 ចោលទាំងស្រុង
-        this._teardownVirtualRenderRegular();
-
         // ---- Desktop Table Render ----
         if (pageData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
         } else {
             tbody.innerHTML = '';
             let currentIndex = 0;
-            const CHUNK_SIZE = 25; // គូរ 25 ជួរក្នុងមួយ Frame
+            const CHUNK_SIZE = 25; 
 
             const renderChunk = () => {
                 let html = '';
@@ -783,6 +806,8 @@ window.RegularEngine = {
         }
     },
 
+    // 🛑 មុខងារ Virtual Scrolling ចាស់ (ដែលបង្កបញ្ហា ១៣ ជួរ) ត្រូវបានបិទចោលទាំងស្រុង
+    _setupVirtualRenderRegular: function() {},
     _teardownVirtualRenderRegular: function() {
         if (this._vScrollHandler && this._vContainer) {
             this._vContainer.removeEventListener('scroll', this._vScrollHandler);
@@ -791,6 +816,7 @@ window.RegularEngine = {
         this._vContainer = null;
         this._vFilteredRows = null;
     },
+    _renderVirtualWindowRegular: function(container) {},
 
     // ---- Export ----
     exportExcel: function() {
