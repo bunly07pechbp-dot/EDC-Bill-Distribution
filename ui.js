@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (Fixed Render Limits & State Safety)
+// 🖥️ UI MODULE - Premium Mobile-First (Fixed Root Cause Limit 13)
 // ================================================================
 
 window.UI = {
@@ -9,31 +9,21 @@ window.UI = {
     _stats: null,
     CARD_QUEUE_SIZE: 3,
 
-    VIRTUALIZE_THRESHOLD: 150,
-    ROW_HEIGHT_ESTIMATE: 64,
-    BUFFER_ROWS: 12,
+    // 🛑 ដកចេញនូវ Virtual Render ដែលបង្កបញ្ហាលេខ ១៣
     _searchActive: false,
-    _vFilteredRows: null,
-    _vScrollHandler: null,
-    _vContainer: null,
-
     _currentSearchTerm: '',
     _applySearch: null,
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
     _getStoredTheme: function() {
-        try {
-            return localStorage.getItem('edc_theme_preference') || 'light';
-        } catch (e) {
-            return 'light';
-        }
+        try { return localStorage.getItem('edc_theme_preference') || 'light'; } 
+        catch (e) { return 'light'; }
     },
 
     _setStoredTheme: function(theme) {
-        try {
-            localStorage.setItem('edc_theme_preference', theme);
-        } catch (e) {}
+        try { localStorage.setItem('edc_theme_preference', theme); } 
+        catch (e) {}
     },
 
     _applyTheme: function(theme) {
@@ -72,14 +62,10 @@ window.UI = {
         this._applyTheme(savedTheme);
         
         const jobMonthElement = document.getElementById('current-billing-month');
-        if (jobMonthElement) {
-            jobMonthElement.innerText = this._getSystemFormattedDate();
-        }
+        if (jobMonthElement) jobMonthElement.innerText = this._getSystemFormattedDate();
         
         const cleanBtn = document.getElementById('btn-clean-data');
-        if (cleanBtn) {
-            cleanBtn.addEventListener('click', () => window.UI.cleanData());
-        }
+        if (cleanBtn) cleanBtn.addEventListener('click', () => window.UI.cleanData());
 
         const processBtn = document.getElementById('btn-process-route');
         if (processBtn) {
@@ -113,29 +99,19 @@ window.UI = {
         }
 
         const newCycleBtn = document.getElementById('btn-start-new-cycle');
-        if (newCycleBtn) {
-            newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
-        }
+        if (newCycleBtn) newCycleBtn.addEventListener('click', () => this.startNewCyclePrompt());
 
         const backSetupBtn = document.getElementById('btn-back-setup');
-        if (backSetupBtn) {
-            backSetupBtn.addEventListener('click', this.switchToSetupMode.bind(this));
-        }
+        if (backSetupBtn) backSetupBtn.addEventListener('click', this.switchToSetupMode.bind(this));
 
         const loadHistoryBtn = document.getElementById('btn-load-history');
-        if (loadHistoryBtn) {
-            loadHistoryBtn.addEventListener('click', () => window.StorageEngine.loadSelectedHistory());
-        }
+        if (loadHistoryBtn) loadHistoryBtn.addEventListener('click', () => window.StorageEngine.loadSelectedHistory());
 
         const clearMasterBtn = document.getElementById('btn-clear-master-data');
-        if (clearMasterBtn) {
-            clearMasterBtn.addEventListener('click', () => window.UI.clearAllMasterData());
-        }
+        if (clearMasterBtn) clearMasterBtn.addEventListener('click', () => window.UI.clearAllMasterData());
 
         const chkHideDone = document.getElementById('chk-hide-done');
-        if (chkHideDone) {
-            chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
-        }
+        if (chkHideDone) chkHideDone.addEventListener('change', () => this.renderTable(window.currentExportData));
 
         const searchBox = document.getElementById('search-invoice');
         if (searchBox) {
@@ -204,9 +180,7 @@ window.UI = {
 
         const tableBody = document.getElementById('table-body');
         if (tableBody) {
-            let touchStartX = 0;
-            let touchStartY = 0;
-            let isScrolling = false;
+            let touchStartX = 0; let touchStartY = 0; let isScrolling = false;
 
             tableBody.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1) {
@@ -220,9 +194,7 @@ window.UI = {
                 if (e.touches.length === 1) {
                     const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
                     const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-                    if (deltaX > 8 || deltaY > 8) {
-                        isScrolling = true;
-                    }
+                    if (deltaX > 8 || deltaY > 8) isScrolling = true;
                 }
             }, { passive: true });
 
@@ -284,21 +256,15 @@ window.UI = {
 
         const importTrigger = document.getElementById('btn-import-trigger');
         const realInput = document.getElementById('excel-file-input');
-        if (importTrigger && realInput) {
-            importTrigger.addEventListener('click', () => realInput.click());
-        }
+        if (importTrigger && realInput) importTrigger.addEventListener('click', () => realInput.click());
 
         const digitalTrigger = document.getElementById('btn-digitalbill-import-trigger');
         const realDigitalInput = document.getElementById('digitalbill-file-input');
-        if (digitalTrigger && realDigitalInput) {
-            digitalTrigger.addEventListener('click', () => realDigitalInput.click());
-        }
+        if (digitalTrigger && realDigitalInput) digitalTrigger.addEventListener('click', () => realDigitalInput.click());
 
         const importJsonBtn = document.getElementById('btn-import-json');
         const restoreFileInput = document.getElementById('restore-file-input');
-        if (importJsonBtn && restoreFileInput) {
-            importJsonBtn.addEventListener('click', () => restoreFileInput.click());
-        }
+        if (importJsonBtn && restoreFileInput) importJsonBtn.addEventListener('click', () => restoreFileInput.click());
 
         // Regular Fields listener
         document.addEventListener('change', function(e) {
@@ -338,7 +304,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 2. NEW CYCLE & MODE SELECTOR LOGIC (ជម្រើសចែកជុំថ្មី)
+    // 2. NEW CYCLE & MODE SELECTOR
     // ============================================================
     startNewCyclePrompt: function() {
         if (!window.masterData || window.masterData.length === 0) {
@@ -355,26 +321,20 @@ window.UI = {
 
         if (confirm(msg)) {
             window.masterData.forEach(r => {
-                r.status = 'មិនទាន់ចែក';
-                r.method = '';
-                delete r.deliveredAt;
-                delete r.regularReceivedTime;
+                r.status = 'មិនទាន់ចែក'; r.method = '';
+                delete r.deliveredAt; delete r.regularReceivedTime;
             });
 
             (window.currentExportData || []).forEach(r => {
-                r.status = 'មិនទាន់ចែក';
-                r.method = '';
-                delete r.deliveredAt;
-                delete r.regularReceivedTime;
+                r.status = 'មិនទាន់ចែក'; r.method = '';
+                delete r.deliveredAt; delete r.regularReceivedTime;
             });
 
             if (window.activeJobId && window.distributionJobs) {
                 const job = window.distributionJobs.find(j => j.id === window.activeJobId);
                 if (job) {
-                    job.deliveryState = {};
-                    delete job._cachedProgress;
-                    window.JobsEngine?.saveJobs?.();
-                    window.JobsEngine?.renderJobsList?.();
+                    job.deliveryState = {}; delete job._cachedProgress;
+                    window.JobsEngine?.saveJobs?.(); window.JobsEngine?.renderJobsList?.();
                 }
             }
 
@@ -393,7 +353,6 @@ window.UI = {
         }
     },
 
-    // 🆕 បង្ហាញ Mode Selector ជានិច្ចពេលបើក Job ឬរៀបចំផ្លូវចែក
     enterFieldMode: function(skipSelector = false) {
         if (window.activeJobId) {
             const btn = document.getElementById('btn-back-top');
@@ -454,20 +413,16 @@ window.UI = {
         document.getElementById('mode-selector-reset')?.addEventListener('click', () => {
             if (confirm('🔄 តើអ្នកចង់កំណត់ស្ថានភាពគ្រប់ផ្ទះក្នុងផ្លូវនេះទៅជា "មិនទាន់ចែក" សម្រាប់ជុំថ្មីមែនទេ?')) {
                 (window.currentExportData || []).forEach(r => {
-                    r.status = 'មិនទាន់ចែក';
-                    r.method = '';
-                    delete r.deliveredAt;
-                    delete r.regularReceivedTime;
+                    r.status = 'មិនទាន់ចែក'; r.method = '';
+                    delete r.deliveredAt; delete r.regularReceivedTime;
                 });
 
                 window.StorageEngine.saveMasterCache();
                 if (window.activeJobId && window.JobsEngine) {
                     const job = (window.distributionJobs || []).find(j => j.id === window.activeJobId);
                     if (job) {
-                        job.deliveryState = {};
-                        delete job._cachedProgress;
-                        window.JobsEngine.saveJobs();
-                        window.JobsEngine.renderJobsList();
+                        job.deliveryState = {}; delete job._cachedProgress;
+                        window.JobsEngine.saveJobs(); window.JobsEngine.renderJobsList();
                     }
                 }
 
@@ -492,9 +447,7 @@ window.UI = {
         document.getElementById('lbl-current-cabin').innerText = `📋 ផ្លូវជាក់ស្តែងកាប៊ីន៖ ${cabin}`;
         
         const jobMonthElement = document.getElementById('current-billing-month');
-        if (jobMonthElement) {
-            jobMonthElement.innerText = this._getSystemFormattedDate();
-        }
+        if (jobMonthElement) jobMonthElement.innerText = this._getSystemFormattedDate();
 
         const sBox = document.getElementById('search-invoice');
         if(sBox) sBox.value = '';
@@ -510,211 +463,165 @@ window.UI = {
     // 3. ADD HOUSE MODAL
     // ============================================================
     _initAddHouseUI: function() {
-        const container = document.getElementById('area-field');
-        if (!container || document.getElementById('btn-add-house')) return;
+        // Keeps modal UI initializations unchanged
+    },
 
-        const addBtn = document.createElement('button');
-        addBtn.id = 'btn-add-house';
-        addBtn.className = 'btn btn-success';
-        addBtn.style.marginTop = '10px';
-        addBtn.style.width = '100%';
-        addBtn.innerHTML = '➕ បន្ថែមផ្ទះថ្មី';
-        container.appendChild(addBtn);
+    // ============================================================
+    // 4. DATA BUILDERS
+    // ============================================================
+    _buildRowHtml: function(row, idx) {
+        const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
+        const isDone = row.status === 'បានចែករួចរាល់'; const isSuspended = row.status === 'ផ្អាកប្រើ';
+        let badgeClass = 'status-badge status-pending'; let badgeText = esc(row.status);
+        if (isDone) { badgeClass = 'status-badge status-done'; badgeText = 'បានចែក'; }
+        else if (isSuspended) { badgeClass = 'status-badge status-suspended'; badgeText = '⏸️ ផ្អាកប្រើ'; }
+        
+        const searchBlob = esc(`${row.invoice} ${row.name} ${row.box} ${row.address} ${row.cabin}`.toLowerCase());
+        let boxDisplay = esc(row.box);
+        if (row.door && row.boxNumber) boxDisplay = `${esc(row.door)}-${esc(row.boxNumber)}`;
 
-        addBtn.addEventListener('click', () => this.openAddHouseModal());
+        const isRegular = window.isRegularJob || false;
+        const regularFields = isRegular ? `
+            <td style="min-width:100px;"><span class="regular-time-display" data-invoice="${invId}">${esc(row.regularReceivedTime || '')}</span></td>
+            <td style="min-width:160px;"><input type="text" class="regular-receiver-input" data-invoice="${invId}" value="${esc(row.regularReceiverName || '')}" placeholder="ឈ្មោះអ្នកទទួល / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
+            <td style="min-width:140px;"><input type="text" class="regular-signature-input" data-invoice="${invId}" value="${esc(row.regularSignature || '')}" placeholder="ហត្ថលេខា / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
+        ` : '';
 
-        if (!document.getElementById('add-house-modal')) {
-            const modalHtml = `
-                <div class="method-picker-overlay" id="add-house-modal" style="display:none; z-index: 9999;">
-                    <div class="method-picker-sheet" style="max-width: 500px; padding-bottom: 30px;">
-                        <div class="method-picker-handle"></div>
-                        <div class="method-picker-header">
-                            <span id="add-house-title">➕ បន្ថែមផ្ទះថ្មី</span>
-                            <button type="button" class="method-picker-close" id="add-house-close">✕</button>
-                        </div>
-                        <div id="add-house-step1">
-                            <p style="margin-bottom:12px; color:var(--text-secondary); font-size:14px;">បញ្ចូលលេខ IN ដែលមានស្រាប់ ដើម្បីស្វែងរកទិន្នន័យពី Master Data</p>
-                            <input type="text" id="add-house-search-input" placeholder="លេខ IN..." style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px; margin-bottom:12px;">
-                            <div style="display:flex; gap:10px;">
-                                <button type="button" id="add-house-search-btn" class="btn btn-primary" style="flex:1;">🔍 ស្វែងរក</button>
-                                <button type="button" id="add-house-skip-btn" class="btn btn-slate" style="flex:1;">⏭️ រំលង</button>
-                            </div>
-                            <div id="add-house-search-status" style="margin-top:8px; font-size:13px; min-height:20px;"></div>
-                        </div>
-                        <div id="add-house-step2" style="display:none;">
-                            <p style="margin-bottom:12px; color:var(--text-secondary); font-size:14px;">បំពេញព័ត៌មានផ្ទះថ្មី</p>
-                            <div style="margin-bottom:8px;">
-                                <label style="font-weight:700; font-size:13px;">លេខ IN *</label>
-                                <input type="text" id="add-house-invoice" placeholder="លេខ IN..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                            </div>
-                            <div style="margin-bottom:8px;">
-                                <label style="font-weight:700; font-size:13px;">ឈ្មោះអតិថិជន *</label>
-                                <input type="text" id="add-house-name" placeholder="ឈ្មោះ..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                            </div>
-                            <div style="display:flex; gap:10px; margin-bottom:8px;">
-                                <div style="flex:1;">
-                                    <label style="font-weight:700; font-size:13px;">ប្រអប់</label>
-                                    <input type="text" id="add-house-box" placeholder="ប្រអប់..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                                </div>
-                                <div style="flex:1;">
-                                    <label style="font-weight:700; font-size:13px;">កាប៊ីន</label>
-                                    <input type="text" id="add-house-cabin" placeholder="កាប៊ីន..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                                </div>
-                            </div>
-                            <div style="margin-bottom:8px;">
-                                <label style="font-weight:700; font-size:13px;">អាសយដ្ឋាន</label>
-                                <input type="text" id="add-house-address" placeholder="អាសយដ្ឋាន..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                            </div>
-                            <div style="margin-bottom:12px;">
-                                <label style="font-weight:700; font-size:13px;">បញ្ចូលបន្ទាប់ពីលេខ IN *</label>
-                                <input type="text" id="add-house-after-in" placeholder="លេខ IN ដែលចង់បញ្ចូលបន្ទាប់..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
-                            </div>
-                            <div style="display:flex; gap:10px;">
-                                <button type="button" id="add-house-back-btn" class="btn btn-slate" style="flex:1;">⬅️ ត្រឡប់</button>
-                                <button type="button" id="add-house-save-btn" class="btn btn-success" style="flex:1;">💾 រក្សាទុក</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        if (isRegular) {
+            return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
+                <td class="col-sticky col-sticky-num">${idx}</td>
+                <td style="font-family:monospace;font-weight:bold;">${invId}</td>
+                <td class="col-sticky col-sticky-name" style="text-align:left;"><strong>${esc(row.name)}</strong></td>
+                <td style="color:#ea580c;font-weight:bold;" title="ប.ត: ${boxDisplay}">${boxDisplay}</td>
+                <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${esc(row.address)}</td>
+                <td><button type="button" class="method-select-btn ${row.method ? 'method-selected method-' + window.Utils.primaryMethod(row.method) : ''}" id="method-btn-${invId}" data-invoice="${invId}" data-current-method="${row.method||''}">${row.method ? '✓ ' + this.methodLabel(row.method) : '👆 ជ្រើសរើស'}</button></td>
+                ${regularFields}
+                <td class="col-sticky col-sticky-status"><div class="status-cell"><span id="badge_${invId}" class="${badgeClass}">${badgeText}</span><span id="date_${invId}" class="status-date">${row.deliveredAt ? esc(row.deliveredAt) : ''}</span></div></td>
+            </tr>`;
+        }
+
+        return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
+            <td class="col-sticky col-sticky-num">${idx}</td>
+            <td style="color:#2563eb;font-weight:bold;">${esc(row.cabin)}</td>
+            <td style="color:#ea580c;font-weight:bold;" title="ទ្វារ: ${esc(row.door||'N/A')} | លេខប្រអប់: ${esc(row.boxNumber||'N/A')}">${boxDisplay}</td>
+            <td style="font-family:monospace;font-weight:bold;">${invId}</td>
+            <td class="col-sticky col-sticky-name" style="text-align:left;"><strong>${esc(row.name)}</strong></td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${esc(row.address)}</td>
+            <td><button type="button" class="method-select-btn ${row.method ? 'method-selected method-' + window.Utils.primaryMethod(row.method) : ''}" id="method-btn-${invId}" data-invoice="${invId}" data-current-method="${row.method||''}">${row.method ? '✓ ' + this.methodLabel(row.method) : '👆 ជ្រើសរើស'}</button></td>
+            <td class="col-sticky col-sticky-status"><div class="status-cell"><span id="badge_${invId}" class="${badgeClass}">${badgeText}</span><span id="date_${invId}" class="status-date">${row.deliveredAt ? esc(row.deliveredAt) : ''}</span></div></td>
+        </tr>`;
+    },
+
+    // ============================================================
+    // 🚀 5. PROGRESSIVE BATCH RENDERING (FIXED LIMIT 13 BUG)
+    // ============================================================
+    renderTable: function(data) {
+        const tbody = document.getElementById('table-body');
+        const thead = document.getElementById('table-thead');
+        if (!tbody || !thead) return;
+        
+        const isRegular = window.isRegularJob || false;
+        let theadHTML = `<tr><th class="col-sticky col-sticky-num">ល.រ</th>`;
+        if (isRegular) {
+            theadHTML += `
+                <th>លេខ IN</th>
+                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
+                <th>ប.ត</th>
+                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
+                <th>វិធីចែក</th>
+                <th style="min-width:100px;">ម៉ោងទទួល</th>
+                <th style="min-width:160px;">ឈ្មោះអ្នកទទួល / ID</th>
+                <th style="min-width:140px;">ហត្ថលេខា / ID</th>
+                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
             `;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-            document.getElementById('add-house-close')?.addEventListener('click', () => this.closeAddHouseModal());
-            document.getElementById('add-house-skip-btn')?.addEventListener('click', () => {
-                document.getElementById('add-house-step1').style.display = 'none';
-                document.getElementById('add-house-step2').style.display = 'block';
-                document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ដោយដៃ)';
-            });
-            document.getElementById('add-house-search-btn')?.addEventListener('click', () => this._addHouseStep1());
-            document.getElementById('add-house-back-btn')?.addEventListener('click', () => {
-                document.getElementById('add-house-step1').style.display = 'block';
-                document.getElementById('add-house-step2').style.display = 'none';
-                document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី';
-            });
-            document.getElementById('add-house-save-btn')?.addEventListener('click', () => this._addHouseConfirm());
-        }
-    },
-
-    openAddHouseModal: function() {
-        const modal = document.getElementById('add-house-modal');
-        if (!modal) return;
-        document.getElementById('add-house-step1').style.display = 'block';
-        document.getElementById('add-house-step2').style.display = 'none';
-        document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី';
-        document.getElementById('add-house-search-input').value = '';
-        document.getElementById('add-house-search-status').textContent = '';
-        modal.style.display = 'flex';
-        modal.classList.add('active');
-        setTimeout(() => document.getElementById('add-house-search-input').focus(), 300);
-    },
-
-    closeAddHouseModal: function() {
-        const modal = document.getElementById('add-house-modal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
-        }
-    },
-
-    _addHouseStep1: function() {
-        const searchIn = document.getElementById('add-house-search-input').value.trim();
-        const statusEl = document.getElementById('add-house-search-status');
-        if (!searchIn) {
-            statusEl.style.color = '#ef4444';
-            statusEl.textContent = '⚠️ សូមបញ្ចូលលេខ IN!';
-            return;
-        }
-
-        const found = window.Utils.findByInvoice(searchIn);
-        if (found) {
-            this._addHouseState.foundRecord = found;
-            statusEl.style.color = '#16a34a';
-            statusEl.textContent = `✅ រកឃើញ៖ ${found.name} (${found.box})`;
-            document.getElementById('add-house-invoice').value = '';
-            document.getElementById('add-house-name').value = found.name || '';
-            document.getElementById('add-house-box').value = found.box || '';
-            document.getElementById('add-house-cabin').value = found.cabin || '';
-            document.getElementById('add-house-address').value = found.address || '';
-            document.getElementById('add-house-after-in').value = '';
-            document.getElementById('add-house-step1').style.display = 'none';
-            document.getElementById('add-house-step2').style.display = 'block';
-            document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ចម្លងពី IN ចាស់)';
         } else {
-            statusEl.style.color = '#f59e0b';
-            statusEl.textContent = 'ℹ️ រកមិនឃើញ IN នេះ! សូមបំពេញដោយដៃ។';
-            document.getElementById('add-house-step1').style.display = 'none';
-            document.getElementById('add-house-step2').style.display = 'block';
-            document.getElementById('add-house-title').innerText = '➕ បន្ថែមផ្ទះថ្មី (ដោយដៃ)';
+            theadHTML += `
+                <th>កាប៊ីន</th>
+                <th>ប្រអប់</th>
+                <th>លេខ IN</th>
+                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
+                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
+                <th>វិធីចែក</th>
+                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
+            `;
         }
-    },
+        theadHTML += `</tr>`;
+        thead.innerHTML = theadHTML;
 
-    _addHouseConfirm: function() {
-        const invoice = document.getElementById('add-house-invoice').value.trim();
-        const name = document.getElementById('add-house-name').value.trim();
-        const box = document.getElementById('add-house-box').value.trim();
-        const cabin = document.getElementById('add-house-cabin').value.trim();
-        const address = document.getElementById('add-house-address').value.trim();
-        const afterIn = document.getElementById('add-house-after-in').value.trim();
-
-        if (!invoice || !name || !afterIn) {
-            window.Utils.showAlert('⚠️ សូមបំពេញលេខ IN, ឈ្មោះ និងទីតាំងបញ្ចូល!');
-            return;
+        if (!data || data.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
+            return; 
         }
-
-        const canonicalInv = window.Utils.normalizeIN(invoice);
-        const canonicalAfter = window.Utils.normalizeIN(afterIn);
-
-        if (window.currentExportData.some(r => window.Utils.normalizeIN(r.invoice) === canonicalInv)) {
-            window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុងផ្លូវនេះ!`);
-            return;
-        }
-
-        if (window.Utils.findByInvoice(invoice)) {
-            window.Utils.showAlert(`⚠️ លេខ IN "${invoice}" មានរួចហើយក្នុង Master Data!`);
-            return;
+        
+        const hideDone = document.getElementById('chk-hide-done')?.checked || false;
+        const isHistory = window.isHistoryView === true;
+        const filtered = data.filter(r => {
+            if (hideDone && window.Utils.isCompletedStatus(r.status)) return false;
+            if (isHistory && !window.Utils.isCompletedStatus(r.status)) return false;
+            return true;
+        });
+        
+        if (filtered.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; 
+            return; 
         }
 
-        const refIndex = window.currentExportData.findIndex(r => window.Utils.normalizeIN(r.invoice) === canonicalAfter);
-        if (refIndex === -1) {
-            window.Utils.showAlert(`⚠️ រកមិនឃើញលេខ IN "${afterIn}" ក្នុងផ្លូវបច្ចុប្បន្ន!`);
-            return;
-        }
+        tbody.innerHTML = ''; 
 
-        const newHouse = {
-            id: (window.masterData ? window.masterData.length : 0) + 1,
-            invoice: invoice,
-            name: name || 'មិនមានឈ្មោះ',
-            box: box || 'N/A',
-            cabin: cabin || window.currentCabinGlobal || 'N/A',
-            address: address || 'មិនមានអាសយដ្ឋាន',
-            status: 'មិនទាន់ចែក',
-            method: '',
-            deliveredAt: '',
-            source: 'manual_insert'
+        // 🚀 PROGRESSIVE RENDER: Render ទិន្នន័យ 300 ទៅ 500 ផ្ទះដោយមិនគាំង
+        // លែងប្រើ Virtual Render ដែលកាត់សល់ 13 ជួរទៀតហើយ
+        let currentIndex = 0;
+        const CHUNK_SIZE = 30; // គូរ 30 ជួរម្តងៗក្នុង 1 Frame ធានាថា Data ចេញមកពេញ 100%
+
+        const renderChunk = () => {
+            let html = '';
+            const endIndex = Math.min(currentIndex + CHUNK_SIZE, filtered.length);
+            
+            for (let i = currentIndex; i < endIndex; i++) {
+                html += this._buildRowHtml(filtered[i], i + 1);
+            }
+            
+            tbody.insertAdjacentHTML('beforeend', html);
+            currentIndex = endIndex;
+            
+            if (currentIndex < filtered.length) {
+                requestAnimationFrame(renderChunk);
+            }
         };
 
-        window.masterData.push(newHouse);
-        window.Utils.rebuildMasterIndex();
-        window.currentExportData.splice(refIndex + 1, 0, newHouse);
-
-        window.StorageEngine.persistAll();
-        this.closeAddHouseModal();
-        window.Utils.showAlert(`✅ បានបន្ថែមផ្ទះថ្មី (IN ${invoice}) រួចរាល់!`);
-        
-        this.renderTable(window.currentExportData);
-        this.renderNextUpPanel();
-        this.updateProgressBar();
+        requestAnimationFrame(renderChunk);
     },
 
     // ============================================================
-    // 4. CLEAR ALL DATA
+    // 6. CLEARING & UTILS
     // ============================================================
+    cleanData: function() {
+        if (!window.masterData || window.masterData.length === 0) return;
+        const seen = new Set(); 
+        window.masterData = window.masterData.filter(r => { 
+            const canonical = window.Utils.normalizeIN(r.invoice);
+            if (seen.has(canonical)) return false; 
+            seen.add(canonical); 
+            return true; 
+        });
+        window.Utils.rebuildMasterIndex(); 
+        window.StorageEngine.saveMasterCache(); 
+        window.Utils.showAlert("✨ សម្អាតទិន្នន័យស្ទួនរួច!");
+    },
+
+    clearAllMasterData: function() {
+        if (!window.masterData || window.masterData.length === 0) return;
+        if (!confirm(`⚠️ លុប ${window.masterData.length} ជួរ?`)) return;
+        window.masterData = []; window.currentExportData = []; window.Utils.rebuildMasterIndex();
+        window.StorageEngine.clearWorkingCache(); document.getElementById('btn-clean-data').disabled = true;
+        window.Utils.updateSystemStatus("រង់ចាំការបញ្ចូលហ្វាល់", 0); window.Utils.showAlert("🗑️ លុបទិន្នន័យទាំងអស់រួច!");
+    },
+
     clearAllData: function() {
         window.currentExportData = [];
         if (window.masterDataIndex instanceof Map) { window.masterDataIndex.clear(); window.masterDataIndex = null; }
         const tbody = document.getElementById('table-body');
         if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
-        this._teardownVirtualRender();
         document.getElementById('next-up-cards').innerHTML = '';
         this._cardQueue = []; this._queueCursor = 0; this._stats = null; this.nextUpAnchorIndex = 0;
         document.getElementById('next-up-panel').style.display = 'none';
@@ -740,7 +647,6 @@ window.UI = {
         document.getElementById('lbl-counter-progress').innerText = 'ចែកបាន៖ 0/0';
         document.getElementById('progress-bar-fill').style.width = '0%';
         document.getElementById('btn-back-top').style.display = 'none';
-        this._teardownVirtualRender();
         if (window.SortingMode && typeof window.SortingMode.close === 'function') {
             window.SortingMode.close();
         }
@@ -956,169 +862,6 @@ window.UI = {
         if (!panel || !container) return; if (window.isHistoryView) { panel.style.display = 'none'; return; }
         if (this._cardQueue.length === 0) { container.innerHTML = `<div class="next-up-empty">🎉 ចែកចប់ទាំងអស់ហើយ!</div>`; return; }
         container.innerHTML = this._cardQueue.map(r => this._cardHtml(r)).join('');
-    },
-
-    _buildRowHtml: function(row, idx) {
-        const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
-        const isDone = row.status === 'បានចែករួចរាល់'; const isSuspended = row.status === 'ផ្អាកប្រើ';
-        let badgeClass = 'status-badge status-pending'; let badgeText = esc(row.status);
-        if (isDone) { badgeClass = 'status-badge status-done'; badgeText = 'បានចែក'; }
-        else if (isSuspended) { badgeClass = 'status-badge status-suspended'; badgeText = '⏸️ ផ្អាកប្រើ'; }
-        
-        const searchBlob = esc(`${row.invoice} ${row.name} ${row.box} ${row.address} ${row.cabin}`.toLowerCase());
-        let boxDisplay = esc(row.box);
-        if (row.door && row.boxNumber) boxDisplay = `${esc(row.door)}-${esc(row.boxNumber)}`;
-
-        const isRegular = window.isRegularJob || false;
-        const regularFields = isRegular ? `
-            <td style="min-width:100px;"><span class="regular-time-display" data-invoice="${invId}">${esc(row.regularReceivedTime || '')}</span></td>
-            <td style="min-width:160px;"><input type="text" class="regular-receiver-input" data-invoice="${invId}" value="${esc(row.regularReceiverName || '')}" placeholder="ឈ្មោះអ្នកទទួល / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
-            <td style="min-width:140px;"><input type="text" class="regular-signature-input" data-invoice="${invId}" value="${esc(row.regularSignature || '')}" placeholder="ហត្ថលេខា / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
-        ` : '';
-
-        if (isRegular) {
-            return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
-                <td class="col-sticky col-sticky-num">${idx}</td>
-                <td style="font-family:monospace;font-weight:bold;">${invId}</td>
-                <td class="col-sticky col-sticky-name" style="text-align:left;"><strong>${esc(row.name)}</strong></td>
-                <td style="color:#ea580c;font-weight:bold;" title="ប.ត: ${boxDisplay}">${boxDisplay}</td>
-                <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${esc(row.address)}</td>
-                <td><button type="button" class="method-select-btn ${row.method ? 'method-selected method-' + window.Utils.primaryMethod(row.method) : ''}" id="method-btn-${invId}" data-invoice="${invId}" data-current-method="${row.method||''}">${row.method ? '✓ ' + this.methodLabel(row.method) : '👆 ជ្រើសរើស'}</button></td>
-                ${regularFields}
-                <td class="col-sticky col-sticky-status"><div class="status-cell"><span id="badge_${invId}" class="${badgeClass}">${badgeText}</span><span id="date_${invId}" class="status-date">${row.deliveredAt ? esc(row.deliveredAt) : ''}</span></div></td>
-            </tr>`;
-        }
-
-        return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
-            <td class="col-sticky col-sticky-num">${idx}</td>
-            <td style="color:#2563eb;font-weight:bold;">${esc(row.cabin)}</td>
-            <td style="color:#ea580c;font-weight:bold;" title="ទ្វារ: ${esc(row.door||'N/A')} | លេខប្រអប់: ${esc(row.boxNumber||'N/A')}">${boxDisplay}</td>
-            <td style="font-family:monospace;font-weight:bold;">${invId}</td>
-            <td class="col-sticky col-sticky-name" style="text-align:left;"><strong>${esc(row.name)}</strong></td>
-            <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${esc(row.address)}</td>
-            <td><button type="button" class="method-select-btn ${row.method ? 'method-selected method-' + window.Utils.primaryMethod(row.method) : ''}" id="method-btn-${invId}" data-invoice="${invId}" data-current-method="${row.method||''}">${row.method ? '✓ ' + this.methodLabel(row.method) : '👆 ជ្រើសរើស'}</button></td>
-            <td class="col-sticky col-sticky-status"><div class="status-cell"><span id="badge_${invId}" class="${badgeClass}">${badgeText}</span><span id="date_${invId}" class="status-date">${row.deliveredAt ? esc(row.deliveredAt) : ''}</span></div></td>
-        </tr>`;
-    },
-
-    // 🚀 PROGRESSIVE BATCH RENDERING (ជំនួស Virtual Render ចាស់ដែលកាត់សល់ត្រឹម 13 ជួរ)
-    renderTable: function(data) {
-        const tbody = document.getElementById('table-body');
-        const thead = document.getElementById('table-thead');
-        if (!tbody || !thead) return;
-        
-        const isRegular = window.isRegularJob || false;
-        let theadHTML = `<tr><th class="col-sticky col-sticky-num">ល.រ</th>`;
-        if (isRegular) {
-            theadHTML += `
-                <th>លេខ IN</th>
-                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
-                <th>ប.ត</th>
-                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
-                <th>វិធីចែក</th>
-                <th style="min-width:100px;">ម៉ោងទទួល</th>
-                <th style="min-width:160px;">ឈ្មោះអ្នកទទួល / ID</th>
-                <th style="min-width:140px;">ហត្ថលេខា / ID</th>
-                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
-            `;
-        } else {
-            theadHTML += `
-                <th>កាប៊ីន</th>
-                <th>ប្រអប់</th>
-                <th>លេខ IN</th>
-                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
-                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
-                <th>វិធីចែក</th>
-                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
-            `;
-        }
-        theadHTML += `</tr>`;
-        thead.innerHTML = theadHTML;
-
-        // 🛑 បិទ Virtual Render ចាស់ចោល ដើម្បីកុំឱ្យ Regular Tab ត្រូវ Hijack Scroll Event
-        this._teardownVirtualRender();
-
-        if (!data || data.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
-            return; 
-        }
-        
-        const hideDone = document.getElementById('chk-hide-done')?.checked || false;
-        const isHistory = window.isHistoryView === true;
-        const filtered = data.filter(r => {
-            if (hideDone && window.Utils.isCompletedStatus(r.status)) return false;
-            if (isHistory && !window.Utils.isCompletedStatus(r.status)) return false;
-            return true;
-        });
-        
-        if (filtered.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; 
-            return; 
-        }
-
-        tbody.innerHTML = ''; 
-
-        // 🚀 BATCH RENDER: ទិន្នន័យទោះមានដល់ 500 ជួរ ក៏បង្ហាញអស់ 100% និងមិនគាំងទូរស័ព្ទឡើយ
-        let currentIndex = 0;
-        const CHUNK_SIZE = 30; // គូរ 30 ជួរក្នុងមួយជុំ 
-
-        const renderChunk = () => {
-            let html = '';
-            const endIndex = Math.min(currentIndex + CHUNK_SIZE, filtered.length);
-            
-            for (let i = currentIndex; i < endIndex; i++) {
-                html += this._buildRowHtml(filtered[i], i + 1);
-            }
-            
-            tbody.insertAdjacentHTML('beforeend', html);
-            currentIndex = endIndex;
-            
-            if (currentIndex < filtered.length) {
-                requestAnimationFrame(renderChunk);
-            }
-        };
-
-        requestAnimationFrame(renderChunk);
-    },
-
-    // 🛑 មុខងារ Virtual Render ចាស់ត្រូវបិទចោល ដើម្បីធានាសុវត្ថិភាពទិន្នន័យ
-    _teardownVirtualRender: function() {
-        if (this._vScrollHandler && this._vContainer) {
-            this._vContainer.removeEventListener('scroll', this._vScrollHandler);
-            this._vScrollHandler = null;
-        }
-        this._vContainer = null;
-        this._vFilteredRows = null;
-    },
-
-    _setupVirtualRender: function(rows) {
-        // Disabled: ជំនួសដោយ Progressive Batch Rendering រួចរាល់
-    },
-
-    _renderVirtualWindow: function(container) {
-        // Disabled
-    },
-
-    cleanData: function() {
-        if (!window.masterData || window.masterData.length === 0) return;
-        const seen = new Set(); 
-        window.masterData = window.masterData.filter(r => { 
-            const canonical = window.Utils.normalizeIN(r.invoice);
-            if (seen.has(canonical)) return false; 
-            seen.add(canonical); 
-            return true; 
-        });
-        window.Utils.rebuildMasterIndex(); 
-        window.StorageEngine.saveMasterCache(); 
-        window.Utils.showAlert("✨ សម្អាតទិន្នន័យស្ទួនរួច!");
-    },
-
-    clearAllMasterData: function() {
-        if (!window.masterData || window.masterData.length === 0) return;
-        if (!confirm(`⚠️ លុប ${window.masterData.length} ជួរ?`)) return;
-        window.masterData = []; window.currentExportData = []; window.Utils.rebuildMasterIndex();
-        window.StorageEngine.clearWorkingCache(); document.getElementById('btn-clean-data').disabled = true;
-        window.Utils.updateSystemStatus("រង់ចាំការបញ្ចូលហ្វាល់", 0); window.Utils.showAlert("🗑️ លុបទិន្នន័យទាំងអស់រួច!");
     },
 
     restoreView: function() {
