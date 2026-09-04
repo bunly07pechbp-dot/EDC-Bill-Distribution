@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (Fixed Root Cause Limit 13)
+// 🖥️ UI MODULE - Premium Mobile-First (Fixed Job List Clicks)
 // ================================================================
 
 window.UI = {
@@ -19,21 +19,18 @@ window.UI = {
 
     _currentSearchTerm: '',
     _applySearch: null,
+    _eventsBound: false, // ការពារកុំឱ្យចង Event ស្ទួនគ្នា
 
     _addHouseState: { refIndex: -1, refInvoice: null, newInvoice: null, foundRecord: null },
 
     _getStoredTheme: function() {
-        try {
-            return localStorage.getItem('edc_theme_preference') || 'light';
-        } catch (e) {
-            return 'light';
-        }
+        try { return localStorage.getItem('edc_theme_preference') || 'light'; } 
+        catch (e) { return 'light'; }
     },
 
     _setStoredTheme: function(theme) {
-        try {
-            localStorage.setItem('edc_theme_preference', theme);
-        } catch (e) {}
+        try { localStorage.setItem('edc_theme_preference', theme); } 
+        catch (e) {}
     },
 
     _applyTheme: function(theme) {
@@ -49,12 +46,6 @@ window.UI = {
             if (window.lucide) { lucide.createIcons(); }
         }
         this._setStoredTheme(theme);
-    },
-
-    _toggleTheme: function() {
-        const current = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
-        const next = current === 'dark' ? 'light' : 'dark';
-        this._applyTheme(next);
     },
 
     _getSystemFormattedDate: function() {
@@ -202,70 +193,59 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        const tableBody = document.getElementById('table-body');
-        if (tableBody) {
-            let touchStartX = 0;
-            let touchStartY = 0;
-            let isScrolling = false;
-
-            tableBody.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1) {
-                    touchStartX = e.touches[0].clientX;
-                    touchStartY = e.touches[0].clientY;
-                    isScrolling = false;
-                }
-            }, { passive: true });
-
-            tableBody.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 1) {
-                    const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
-                    const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-                    if (deltaX > 8 || deltaY > 8) {
-                        isScrolling = true;
-                    }
-                }
-            }, { passive: true });
-
-            tableBody.addEventListener('click', (e) => {
-                if (isScrolling) return;
-                if (e.target.closest('input, .regular-receiver-input, .regular-signature-input')) return;
-
-                const row = e.target.closest('tr[data-invoice]');
-                if (row) {
+        // 🚀 GLOBAL EVENT DELEGATION: ធានាថាការចុចធីកដំណើរការ ១០០% ទោះ Rendering បែបណាក៏ដោយ
+        if (!this._eventsBound) {
+            document.body.addEventListener('click', (e) => {
+                
+                // ១. ពេលចុចប៊ូតុង "👆 ជ្រើសរើស" ឬ ជួរក្នុងតារាង Job
+                const methodBtn = e.target.closest('.method-select-btn');
+                const row = e.target.closest('tr.clickable-row');
+                
+                if (methodBtn) {
+                    e.preventDefault();
+                    const invoice = methodBtn.dataset.invoice;
+                    const currentMethod = methodBtn.dataset.currentMethod;
+                    window.UI.openMethodPicker(invoice, currentMethod);
+                    return;
+                } 
+                else if (row && !e.target.closest('input, button')) {
                     const invoice = row.dataset.invoice;
                     const idx = (window.currentExportData || []).findIndex(r => window.Utils.normalizeIN(r.invoice) === window.Utils.normalizeIN(invoice));
                     if (idx !== -1) { 
-                        this.nextUpAnchorIndex = idx; 
-                        this._rebuildQueueFromAnchor(); 
+                        window.UI.nextUpAnchorIndex = idx; 
+                        window.UI._rebuildQueueFromAnchor(); 
                     }
-                    this.openMethodPicker(invoice, row.dataset.currentMethod);
+                    window.UI.openMethodPicker(invoice, row.dataset.currentMethod);
+                    return;
+                }
+
+                // ២. ពេលចុចជ្រើសរើសប្រភេទ (ប្រអប់, សន្តិសុខ...) ក្នុង Modal
+                const modalOpt = e.target.closest('.method-option');
+                const activeModal = e.target.closest('#method-picker-modal');
+                if (modalOpt && activeModal) {
+                    const invoice = activeModal.dataset.activeInvoice;
+                    const method = modalOpt.dataset.method;
+                    if (invoice) { 
+                        window.UI.commitSelection(invoice, method); 
+                    }
+                    window.UI.closeMethodPicker();
+                    return;
+                }
+
+                // ៣. បិទ Modal ពេលចុចស៊ុមខាងក្រៅ ឬសញ្ញាខ្វែង
+                if (e.target.id === 'method-picker-modal' || e.target.closest('.method-picker-close')) {
+                    window.UI.closeMethodPicker();
+                    return;
+                }
+
+                // ៤. ពេលចុចប៊ូតុងរហ័ស លើកាតខាងលើ (Quick Actions)
+                const quickBtn = e.target.closest('.quick-method-btn');
+                if (quickBtn) {
+                    window.UI.commitSelection(quickBtn.dataset.invoice, quickBtn.dataset.method); 
+                    return;
                 }
             });
-        }
-
-        const modal = document.getElementById('method-picker-modal');
-        if (modal) {
-            modal.addEventListener('click', (e) => { if (e.target === modal) this.closeMethodPicker(); });
-            modal.querySelectorAll('.method-option').forEach(opt => {
-                opt.addEventListener('click', () => {
-                    const invoice = modal.dataset.activeInvoice;
-                    const method = opt.dataset.method;
-                    if (invoice) { this.commitSelection(invoice, method); this.updateRowMethodButton(invoice); }
-                    this.closeMethodPicker();
-                });
-            });
-        }
-        document.getElementById('method-picker-close')?.addEventListener('click', () => this.closeMethodPicker());
-
-        const nextUpContainer = document.getElementById('next-up-cards');
-        if (nextUpContainer) {
-            nextUpContainer.addEventListener('click', (e) => {
-                const btn = e.target.closest('.quick-method-btn');
-                if (btn) { 
-                    this.commitSelection(btn.dataset.invoice, btn.dataset.method); 
-                    this.updateRowMethodButton(btn.dataset.invoice); 
-                }
-            });
+            this._eventsBound = true;
         }
 
         document.getElementById('btn-back-top')?.addEventListener('click', () => {
@@ -300,7 +280,7 @@ window.UI = {
             importJsonBtn.addEventListener('click', () => restoreFileInput.click());
         }
 
-        // Regular Fields listener
+        // Regular Fields listener (Global Change Event)
         document.addEventListener('change', function(e) {
             const target = e.target;
             if (target.classList.contains('regular-receiver-input') ||
@@ -752,7 +732,7 @@ window.UI = {
     },
 
     // ============================================================
-    // 🚀 5. PROGRESSIVE BATCH RENDERING (FIXED LIMIT 13 BUG)
+    // 5. PROGRESSIVE BATCH RENDERING (FIXED LIMIT 13 BUG)
     // ============================================================
     renderTable: function(data) {
         const tbody = document.getElementById('table-body');
@@ -787,7 +767,6 @@ window.UI = {
         theadHTML += `</tr>`;
         thead.innerHTML = theadHTML;
 
-        // 🛑 សម្អាតវ៉ាល់ Virtual Render ចាស់ ដើម្បីរំដោះការគាំង Limit 13 
         this._teardownVirtualRender();
 
         if (!data || data.length === 0) { 
@@ -810,7 +789,6 @@ window.UI = {
 
         tbody.innerHTML = ''; 
 
-        // 🚀 PROGRESSIVE BATCH RENDER (លែងមានបញ្ហាកាត់ទិន្នន័យសល់ 13 ជួរ)
         let currentIndex = 0;
         const CHUNK_SIZE = 30;
 
@@ -842,16 +820,11 @@ window.UI = {
         this._vFilteredRows = null;
     },
 
-    _setupVirtualRender: function(rows) {
-        // Disabled: ជំនួសដោយ Progressive Batch Rendering រួចរាល់
-    },
-
-    _renderVirtualWindow: function(container) {
-        // Disabled
-    },
+    _setupVirtualRender: function(rows) {},
+    _renderVirtualWindow: function(container) {},
 
     // ============================================================
-    // 6. CLEARING & UTILS
+    // 6. CLEARING, METHODS & UTILS
     // ============================================================
     cleanData: function() {
         if (!window.masterData || window.masterData.length === 0) return;
@@ -1122,6 +1095,15 @@ window.UI = {
         if (!panel || !container) return; if (window.isHistoryView) { panel.style.display = 'none'; return; }
         if (this._cardQueue.length === 0) { container.innerHTML = `<div class="next-up-empty">🎉 ចែកចប់ទាំងអស់ហើយ!</div>`; return; }
         container.innerHTML = this._cardQueue.map(r => this._cardHtml(r)).join('');
+    },
+
+    _onCardCompleted: function(invoice) {
+        const normInv = window.Utils.normalizeIN(invoice);
+        const idx = this._cardQueue.findIndex(r => window.Utils.normalizeIN(r.invoice) === normInv); 
+        if (idx === -1) return;
+        this._cardQueue.splice(idx, 1); 
+        this._fillQueue(); 
+        this._renderCardQueueFull();
     },
 
     restoreView: function() {
