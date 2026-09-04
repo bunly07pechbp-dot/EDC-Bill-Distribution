@@ -1,5 +1,5 @@
 // ================================================================
-// 🖥️ UI MODULE - Premium Mobile-First (Mode Selector & New Cycle Guaranteed)
+// 🖥️ UI MODULE - Premium Mobile-First (Fixed Render Limits & State Safety)
 // ================================================================
 
 window.UI = {
@@ -958,15 +958,6 @@ window.UI = {
         container.innerHTML = this._cardQueue.map(r => this._cardHtml(r)).join('');
     },
 
-    _onCardCompleted: function(invoice) {
-        const normInv = window.Utils.normalizeIN(invoice);
-        const idx = this._cardQueue.findIndex(r => window.Utils.normalizeIN(r.invoice) === normInv); 
-        if (idx === -1) return;
-        this._cardQueue.splice(idx, 1); 
-        this._fillQueue(); 
-        this._renderCardQueueFull();
-    },
-
     _buildRowHtml: function(row, idx) {
         const esc = window.Utils.escapeHtml; const invId = esc(row.invoice);
         const isDone = row.status === 'បានចែករួចរាល់'; const isSuspended = row.status === 'ផ្អាកប្រើ';
@@ -1010,8 +1001,10 @@ window.UI = {
         </tr>`;
     },
 
+    // 🚀 PROGRESSIVE BATCH RENDERING (ជំនួស Virtual Render ចាស់ដែលកាត់សល់ត្រឹម 13 ជួរ)
     renderTable: function(data) {
-        const tbody = document.getElementById('table-body'); const thead = document.getElementById('table-thead');
+        const tbody = document.getElementById('table-body');
+        const thead = document.getElementById('table-thead');
         if (!tbody || !thead) return;
         
         const isRegular = window.isRegularJob || false;
@@ -1042,7 +1035,14 @@ window.UI = {
         theadHTML += `</tr>`;
         thead.innerHTML = theadHTML;
 
-        if (!data || data.length === 0) { this._teardownVirtualRender(); tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; return; }
+        // 🛑 បិទ Virtual Render ចាស់ចោល ដើម្បីកុំឱ្យ Regular Tab ត្រូវ Hijack Scroll Event
+        this._teardownVirtualRender();
+
+        if (!data || data.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
+            return; 
+        }
+        
         const hideDone = document.getElementById('chk-hide-done')?.checked || false;
         const isHistory = window.isHistoryView === true;
         const filtered = data.filter(r => {
@@ -1050,16 +1050,38 @@ window.UI = {
             if (isHistory && !window.Utils.isCompletedStatus(r.status)) return false;
             return true;
         });
-        if (filtered.length === 0) { this._teardownVirtualRender(); tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; return; }
-
-        if (filtered.length > this.VIRTUALIZE_THRESHOLD && !this._searchActive) {
-            this._setupVirtualRender(filtered);
-        } else {
-            this._teardownVirtualRender();
-            tbody.innerHTML = filtered.map((r, i) => this._buildRowHtml(r, i+1)).join('');
+        
+        if (filtered.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; 
+            return; 
         }
+
+        tbody.innerHTML = ''; 
+
+        // 🚀 BATCH RENDER: ទិន្នន័យទោះមានដល់ 500 ជួរ ក៏បង្ហាញអស់ 100% និងមិនគាំងទូរស័ព្ទឡើយ
+        let currentIndex = 0;
+        const CHUNK_SIZE = 30; // គូរ 30 ជួរក្នុងមួយជុំ 
+
+        const renderChunk = () => {
+            let html = '';
+            const endIndex = Math.min(currentIndex + CHUNK_SIZE, filtered.length);
+            
+            for (let i = currentIndex; i < endIndex; i++) {
+                html += this._buildRowHtml(filtered[i], i + 1);
+            }
+            
+            tbody.insertAdjacentHTML('beforeend', html);
+            currentIndex = endIndex;
+            
+            if (currentIndex < filtered.length) {
+                requestAnimationFrame(renderChunk);
+            }
+        };
+
+        requestAnimationFrame(renderChunk);
     },
 
+    // 🛑 មុខងារ Virtual Render ចាស់ត្រូវបិទចោល ដើម្បីធានាសុវត្ថិភាពទិន្នន័យ
     _teardownVirtualRender: function() {
         if (this._vScrollHandler && this._vContainer) {
             this._vContainer.removeEventListener('scroll', this._vScrollHandler);
@@ -1070,57 +1092,11 @@ window.UI = {
     },
 
     _setupVirtualRender: function(rows) {
-        this._vFilteredRows = rows;
-        const container = document.querySelector('.table-responsive');
-        if (!container) {
-            this._teardownVirtualRender();
-            const tbody = document.getElementById('table-body');
-            if (tbody) tbody.innerHTML = rows.map((r, i) => this._buildRowHtml(r, i+1)).join('');
-            return;
-        }
-        this._vContainer = container;
-        this._renderVirtualWindow(container);
-        if (this._vScrollHandler) {
-            container.removeEventListener('scroll', this._vScrollHandler);
-            this._vScrollHandler = null;
-        }
-        let ticking = false;
-        this._vScrollHandler = () => {
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(() => {
-                this._renderVirtualWindow(container);
-                ticking = false;
-            });
-        };
-        container.addEventListener('scroll', this._vScrollHandler, { passive: true });
+        // Disabled: ជំនួសដោយ Progressive Batch Rendering រួចរាល់
     },
 
     _renderVirtualWindow: function(container) {
-        const tbody = document.getElementById('table-body');
-        const rows = this._vFilteredRows;
-        if (!tbody || !rows || rows.length === 0) return;
-        
-        const isRegular = window.isRegularJob || false;
-        const n = rows.length;
-        const rh = this.ROW_HEIGHT_ESTIMATE;
-        const colspan = isRegular ? 10 : 8;
-        
-        const scrollTop = container ? container.scrollTop : 0;
-        const containerHeight = container ? container.clientHeight : window.innerHeight;
-        
-        let start = Math.floor(scrollTop / rh) - this.BUFFER_ROWS;
-        let end = Math.ceil((scrollTop + containerHeight) / rh) + this.BUFFER_ROWS;
-        start = Math.max(0, Math.min(start, n - 1));
-        end = Math.max(start, Math.min(end, n - 1));
-        
-        let html = `<tr class="v-spacer" style="height:${start * rh}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
-        for (let i = start; i <= end; i++) {
-            html += this._buildRowHtml(rows[i], i + 1);
-        }
-        html += `<tr class="v-spacer" style="height:${(n - 1 - end) * rh}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
-        
-        tbody.innerHTML = html;
+        // Disabled
     },
 
     cleanData: function() {
