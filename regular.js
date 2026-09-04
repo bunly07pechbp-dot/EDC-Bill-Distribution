@@ -1,11 +1,8 @@
 // ==========================================================================
 // 📊 Regular Module – Complete Management (Import, CRUD, Status, Export)
 // --------------------------------------------------------------------------
-// Uses StorageEngine.loadRegularData() / saveRegularData().
-// Fully self-contained. Does not modify other modules.
-// Optimized for mobile with card layout.
-// Includes "លាក់ផ្ទះដែលចែករួច" toggle.
-// Fixed "Insert After" logic – using Array Splice for exact placement.
+// Fix: Guaranteed Unique IDs (Solves 13-tick limit / overwriting)
+// Fix: Progressive Rendering (Solves >150 items 13-row bug)
 // ==========================================================================
 
 window.RegularEngine = {
@@ -14,13 +11,16 @@ window.RegularEngine = {
     _currentPage: 1,
     _pageSize: 50,
 
-    // ---- PHASE 4: Virtual Scrolling properties ----
+    // ---- Virtual Scrolling properties (Disabled & Cleaned Up) ----
     _vFilteredRows: null,
     _vScrollHandler: null,
     _vContainer: null,
     VIRTUALIZE_THRESHOLD: 150,
-    ROW_HEIGHT_ESTIMATE: 64,
-    BUFFER_ROWS: 12,
+
+    // 🚀 1. SUPER UNIQUE ID GENERATOR (ការពារការជាន់ ID លេខ 13)
+    _generateUniqueId: function(index = 0) {
+        return 'reg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10) + '_' + index;
+    },
 
     // ---- Init ----
     init: function() {
@@ -38,11 +38,24 @@ window.RegularEngine = {
         console.log('📊 renderNextUpCards() called – no action needed.');
     },
 
-    // ---- Data Persistence ----
+    // ---- Data Persistence & Auto-Heal ----
     loadData: function() {
         try {
             const raw = window.StorageEngine.loadRegularData();
-            this._data = Array.isArray(raw) ? raw.map(r => this._normalizeRecord(r)) : [];
+            const seenIds = new Set();
+            this._data = [];
+            
+            if (Array.isArray(raw)) {
+                raw.forEach((r, idx) => {
+                    let rec = this._normalizeRecord(r, idx);
+                    // 🛠️ Auto-Heal: ប្រសិនបើ ID ជាន់គ្នាពីមុន យើងបង្កើតថ្មីភ្លាមៗដើម្បីឱ្យអាចធីកបានគ្រប់គ្នា
+                    if (seenIds.has(rec.id)) {
+                        rec.id = this._generateUniqueId(idx);
+                    }
+                    seenIds.add(rec.id);
+                    this._data.push(rec);
+                });
+            }
             console.log('📊 Loaded Regular data:', this._data.length);
         } catch (e) {
             console.error('❌ Load Regular data error:', e);
@@ -61,9 +74,9 @@ window.RegularEngine = {
     },
 
     // ---- Normalize Record ----
-    _normalizeRecord: function(record) {
+    _normalizeRecord: function(record, index = 0) {
         return {
-            id: record.id || Date.now() + Math.random(),
+            id: record.id || this._generateUniqueId(index),
             houseNumber: record.houseNumber || record.invoice || record._id || '',
             customerName: record.customerName || record.name || '',
             boxNumber: record.boxNumber || record.box || record.meter || '',
@@ -127,9 +140,9 @@ window.RegularEngine = {
             </div>
 
             <!-- Desktop Table -->
-            <div class="table-responsive regular-desktop-table">
+            <div class="table-responsive regular-desktop-table" style="max-height: 65vh; overflow-y: auto;">
                 <table>
-                    <thead id="regular-thead">
+                    <thead id="regular-thead" style="position: sticky; top: 0; z-index: 10;">
                         <tr>
                             <th style="width: 45px; text-align:center;">ល.រ</th>
                             <th style="min-width: 100px; text-align:center;">លេខIN</th>
@@ -146,7 +159,7 @@ window.RegularEngine = {
             </div>
 
             <!-- Mobile Cards -->
-            <div id="regular-mobile-container" class="regular-mobile-cards" style="display:none;"></div>
+            <div id="regular-mobile-container" class="regular-mobile-cards" style="display:none; max-height: 70vh; overflow-y: auto;"></div>
 
             <div class="regular-pagination" id="regular-pagination"></div>
         `;
@@ -301,7 +314,8 @@ window.RegularEngine = {
             const id = row.dataset.id;
             if (!id) return;
 
-            const record = this._data.find(r => r.id == id);
+            // 🔍 ស្វែងរកតាម String(ID) ដើម្បីការពារ Type Casting Bug
+            const record = this._data.find(r => String(r.id) === String(id));
             if (!record) return;
 
             if (target.classList.contains('r-method-btn')) {
@@ -379,7 +393,7 @@ window.RegularEngine = {
 
         if (id) {
             if (insertContainer) insertContainer.style.display = 'none';
-            const record = this._data.find(r => r.id == id);
+            const record = this._data.find(r => String(r.id) === String(id));
             if (!record) return;
             title.textContent = '✏️ កែប្រែ';
             idField.value = id;
@@ -401,7 +415,6 @@ window.RegularEngine = {
         document.getElementById('regular-modal-overlay')?.classList.remove('active');
     },
 
-    // ---- 🆕 Save Modal (ជួសជុល Logic Insert After ចាក់ចូលចំ Index 100%) ----
     _saveModal: function() {
         const id = document.getElementById('regular-modal-id').value;
         const houseNumber = document.getElementById('r-houseNumber').value.trim();
@@ -417,8 +430,7 @@ window.RegularEngine = {
         }
 
         if (id) {
-            // ---- Edit ----
-            const record = this._data.find(r => r.id == id);
+            const record = this._data.find(r => String(r.id) === String(id));
             if (!record) return;
             record.houseNumber = houseNumber;
             record.customerName = customerName;
@@ -433,9 +445,8 @@ window.RegularEngine = {
             return;
         }
 
-        // ---- Add New ----
         const newRecord = {
-            id: Date.now() + Math.random(),
+            id: this._generateUniqueId(),
             houseNumber: houseNumber,
             customerName: customerName,
             boxNumber: boxNumber,
@@ -451,20 +462,15 @@ window.RegularEngine = {
         };
 
         if (insertAfterHouse) {
-            // ស្វែងរក Index របស់ផ្ទះគោលដៅនៅក្នុង Array ទិន្នន័យផ្ទាល់តែម្តង
             const targetIdx = this._data.findIndex(r => String(r.houseNumber).toLowerCase() === insertAfterHouse.toLowerCase());
-            
             if (targetIdx !== -1) {
-                // ប្រើប្រាស់ Splice ដើម្បីញាត់បញ្ចូលទៅចន្លោះ "បន្ទាប់ពី" ផ្ទះនោះភ្លាមៗ
                 this._data.splice(targetIdx + 1, 0, newRecord);
                 window.Utils.showAlert(`✅ បានបញ្ចូលលេខIN ${houseNumber} ទៅបន្ទាប់ពីលេខ ${insertAfterHouse}!`);
             } else {
-                // បើអត់រកឃើញ គឺដាក់ចូលខាងលើគេបង្អស់ (Index 0)
                 this._data.unshift(newRecord);
                 window.Utils.showAlert(`⚠️ មិនរកឃើញលេខIN "${insertAfterHouse}" ទេ! ទិន្នន័យត្រូវបានបន្ថែមលើគេបង្អស់។`);
             }
         } else {
-            // បើទុកប្រអប់ទទេ គឺបន្ថែមទៅលើគេបង្អស់ (Index 0)
             this._data.unshift(newRecord);
             window.Utils.showAlert(`✅ បានបន្ថែមលេខIN ${houseNumber} រួចរាល់!`);
         }
@@ -474,18 +480,16 @@ window.RegularEngine = {
         this.closeModal();
     },
 
-    // ---- CRUD ----
     deleteHouse: function(id) {
-        const record = this._data.find(r => r.id == id);
+        const record = this._data.find(r => String(r.id) === String(id));
         if (!record) return;
         if (!confirm(`⚠️ លុបលេខIN "${record.houseNumber}" (${record.customerName}) ជាអចិន្ត្រៃយ៍?`)) return;
-        this._data = this._data.filter(r => r.id != id);
+        this._data = this._data.filter(r => String(r.id) !== String(id));
         this.saveData();
         this.renderAll();
         window.Utils.showAlert(`🗑️ បានលុបលេខIN ${record.houseNumber} រួច!`);
     },
 
-    // ---- Import ----
     importExcel: function(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -527,7 +531,7 @@ window.RegularEngine = {
                                 boxNumber: String(row[2] || '').trim(),
                                 remark: String(row[3] || '').trim(),
                                 noteId: String(row[4] || '').trim()
-                            });
+                            }, i);
                             if (record.houseNumber) this._data.push(record);
                         }
                     }
@@ -556,7 +560,7 @@ window.RegularEngine = {
                             boxNumber: String(row[fieldMap.boxNumber] || '').trim(),
                             noteId: String(row[fieldMap.noteId] || '').trim(),
                             remark: String(row[fieldMap.remark] || '').trim()
-                        });
+                        }, r);
                         if (record.houseNumber) this._data.push(record);
                     }
                 }
@@ -598,7 +602,7 @@ window.RegularEngine = {
         document.getElementById('rstat-methods').textContent = methodSummary;
     },
 
-    // ---- PHASE 4: renderTable with Virtual Scrolling ----
+    // 🚀 2. Progressive Batch Rendering (ជំនួស Virtual Render ចាស់ចោល)
     renderTable: function() {
         const tbody = document.getElementById('regular-tbody');
         const mobileContainer = document.getElementById('regular-mobile-container');
@@ -621,8 +625,6 @@ window.RegularEngine = {
             return true;
         });
 
-        // 💡 ចំណុចគន្លឹះ៖ លុបបន្ទាត់ filtered.sort(...) ចោល ដើម្បីរក្សាលំដាប់លំដោយ Array ដើមពីការ Splice
-
         const total = filtered.length;
         const totalPages = Math.ceil(total / this._pageSize) || 1;
         if (this._currentPage > totalPages) this._currentPage = totalPages;
@@ -639,19 +641,24 @@ window.RegularEngine = {
         };
         const methodOptions = Object.keys(methodIcons);
 
-        // ---- Desktop Table ----
-        // PHASE 4: Use virtual scrolling if pageData is large and not searching
-        const isVirtual = pageData.length > this.VIRTUALIZE_THRESHOLD && !search;
-        if (isVirtual) {
-            this._vFilteredRows = pageData;
-            this._setupVirtualRenderRegular();
+        // បិទ Virtual Render ចាស់ដែលបង្ក Bug 13 ចោលទាំងស្រុង
+        this._teardownVirtualRenderRegular();
+
+        // ---- Desktop Table Render ----
+        if (pageData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
         } else {
-            this._teardownVirtualRenderRegular();
-            if (pageData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
-            } else {
+            tbody.innerHTML = '';
+            let currentIndex = 0;
+            const CHUNK_SIZE = 25; // គូរ 25 ជួរក្នុងមួយ Frame
+
+            const renderChunk = () => {
+                let html = '';
+                const chunkEnd = Math.min(currentIndex + CHUNK_SIZE, pageData.length);
                 const esc = window.Utils.escapeHtml.bind(window.Utils);
-                tbody.innerHTML = pageData.map((r, idx) => {
+                
+                for (let i = currentIndex; i < chunkEnd; i++) {
+                    const r = pageData[i];
                     const deliveredAtDisplay = r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : '';
 
                     const methodButtons = methodOptions.map(m => {
@@ -662,9 +669,9 @@ window.RegularEngine = {
 
                     const noteInput = `<input type="text" class="r-note-input" value="${esc(r.noteId)}" placeholder="ID" />`;
 
-                    return `
+                    html += `
                         <tr data-id="${esc(r.id)}">
-                            <td style="text-align:center;">${start + idx + 1}</td>
+                            <td style="text-align:center;">${start + i + 1}</td>
                             <td style="text-align:center;"><strong>${esc(r.houseNumber)}</strong></td>
                             <td style="text-align:left;">${esc(r.customerName)}</td>
                             <td style="text-align:center;">${esc(r.boxNumber)}</td>
@@ -677,63 +684,89 @@ window.RegularEngine = {
                             </td>
                         </tr>
                     `;
-                }).join('');
-            }
+                }
+                
+                tbody.insertAdjacentHTML('beforeend', html);
+                currentIndex = chunkEnd;
+                
+                if (currentIndex < pageData.length) {
+                    requestAnimationFrame(renderChunk);
+                }
+            };
+            requestAnimationFrame(renderChunk);
         }
 
-        // ---- Mobile Cards (always full render, no virtual) ----
+        // ---- Mobile Cards Render ----
         if (pageData.length === 0) {
             mobileContainer.innerHTML = `<div class="empty-state">📭 គ្មានទិន្នន័យ</div>`;
         } else {
-            const esc = window.Utils.escapeHtml.bind(window.Utils);
-            mobileContainer.innerHTML = pageData.map((r, idx) => {
-                const deliveredAtDisplay = r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : '';
+            mobileContainer.innerHTML = '';
+            let mIndex = 0;
+            const M_CHUNK_SIZE = 15;
 
-                const methodButtons = methodOptions.map(m => {
-                    const active = r.method === m ? 'method-active' : '';
-                    const icon = methodIcons[m] || m;
-                    return `<button type="button" class="r-method-btn ${active}" data-method="${esc(m)}" title="${esc(m)}">${icon}</button>`;
-                }).join('');
+            const renderMobileChunk = () => {
+                let html = '';
+                const chunkEnd = Math.min(mIndex + M_CHUNK_SIZE, pageData.length);
+                const esc = window.Utils.escapeHtml.bind(window.Utils);
 
-                const noteInput = `<input type="text" class="r-note-input" value="${esc(r.noteId)}" placeholder="ID" />`;
+                for (let i = mIndex; i < chunkEnd; i++) {
+                    const r = pageData[i];
+                    const deliveredAtDisplay = r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : '';
 
-                return `
-                    <div class="regular-mobile-card" data-id="${esc(r.id)}">
-                        <div class="r-card-row">
-                            <span class="r-card-label">ល.រ</span>
-                            <span class="r-card-value">${start + idx + 1}</span>
+                    const methodButtons = methodOptions.map(m => {
+                        const active = r.method === m ? 'method-active' : '';
+                        const icon = methodIcons[m] || m;
+                        return `<button type="button" class="r-method-btn ${active}" data-method="${esc(m)}" title="${esc(m)}">${icon}</button>`;
+                    }).join('');
+
+                    const noteInput = `<input type="text" class="r-note-input" value="${esc(r.noteId)}" placeholder="ID" />`;
+
+                    html += `
+                        <div class="regular-mobile-card" data-id="${esc(r.id)}">
+                            <div class="r-card-row">
+                                <span class="r-card-label">ល.រ</span>
+                                <span class="r-card-value">${start + i + 1}</span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">លេខIN</span>
+                                <span class="r-card-value"><strong>${esc(r.houseNumber)}</strong></span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">ឈ្មោះ</span>
+                                <span class="r-card-value">${esc(r.customerName)}</span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">ប.ត</span>
+                                <span class="r-card-value">${esc(r.boxNumber)}</span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">ជម្រើសចែក</span>
+                                <span class="r-card-value"><div class="r-method-buttons">${methodButtons}</div></span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">ID ចំណាំ</span>
+                                <span class="r-card-value">${noteInput}</span>
+                            </div>
+                            <div class="r-card-row">
+                                <span class="r-card-label">ម៉ោងចែក</span>
+                                <span class="r-card-value r-time-display">${deliveredAtDisplay}</span>
+                            </div>
+                            <div class="r-card-actions">
+                                <button type="button" class="btn btn-sm btn-primary r-btn-edit">✏️</button>
+                                <button type="button" class="btn btn-sm btn-danger r-btn-delete">🗑️</button>
+                            </div>
                         </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">លេខIN</span>
-                            <span class="r-card-value"><strong>${esc(r.houseNumber)}</strong></span>
-                        </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">ឈ្មោះ</span>
-                            <span class="r-card-value">${esc(r.customerName)}</span>
-                        </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">ប.ត</span>
-                            <span class="r-card-value">${esc(r.boxNumber)}</span>
-                        </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">ជម្រើសចែក</span>
-                            <span class="r-card-value"><div class="r-method-buttons">${methodButtons}</div></span>
-                        </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">ID ចំណាំ</span>
-                            <span class="r-card-value">${noteInput}</span>
-                        </div>
-                        <div class="r-card-row">
-                            <span class="r-card-label">ម៉ោងចែក</span>
-                            <span class="r-card-value r-time-display">${deliveredAtDisplay}</span>
-                        </div>
-                        <div class="r-card-actions">
-                            <button type="button" class="btn btn-sm btn-primary r-btn-edit">✏️</button>
-                            <button type="button" class="btn btn-sm btn-danger r-btn-delete">🗑️</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }
+                
+                mobileContainer.insertAdjacentHTML('beforeend', html);
+                mIndex = chunkEnd;
+                
+                if (mIndex < pageData.length) {
+                    requestAnimationFrame(renderMobileChunk);
+                }
+            };
+            requestAnimationFrame(renderMobileChunk);
         }
 
         // Pagination
@@ -750,67 +783,6 @@ window.RegularEngine = {
         }
     },
 
-    // ---- PHASE 4: Virtual Scrolling methods for Regular ----
-    _setupVirtualRenderRegular: function() {
-        const container = document.querySelector('.regular-desktop-table');
-        if (!container) {
-            // Fallback: render all
-            this._teardownVirtualRenderRegular();
-            const tbody = document.getElementById('regular-tbody');
-            if (tbody && this._vFilteredRows) {
-                const esc = window.Utils.escapeHtml.bind(window.Utils);
-                const methodIcons = {
-                    'ប្រអប់': '📦',
-                    'សន្តិសុខ': '👮',
-                    'បុគ្គលិក': '🧑‍🏫',
-                    'ម្ចាស់ទីតាំង': '🏠'
-                };
-                const methodOptions = Object.keys(methodIcons);
-                tbody.innerHTML = this._vFilteredRows.map((r, idx) => {
-                    const deliveredAtDisplay = r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : '';
-                    const methodButtons = methodOptions.map(m => {
-                        const active = r.method === m ? 'method-active' : '';
-                        const icon = methodIcons[m] || m;
-                        return `<button type="button" class="r-method-btn ${active}" data-method="${esc(m)}" title="${esc(m)}">${icon}</button>`;
-                    }).join('');
-                    const noteInput = `<input type="text" class="r-note-input" value="${esc(r.noteId)}" placeholder="ID" />`;
-                    return `
-                        <tr data-id="${esc(r.id)}">
-                            <td style="text-align:center;">${idx + 1}</td>
-                            <td style="text-align:center;"><strong>${esc(r.houseNumber)}</strong></td>
-                            <td style="text-align:left;">${esc(r.customerName)}</td>
-                            <td style="text-align:center;">${esc(r.boxNumber)}</td>
-                            <td style="text-align:center;"><div class="r-method-buttons">${methodButtons}</div></td>
-                            <td style="text-align:center;">${noteInput}</td>
-                            <td class="r-time-display" style="text-align:center;font-size:11px;color:var(--text-secondary);font-weight:bold;">${deliveredAtDisplay}</td>
-                            <td style="text-align:center;white-space:nowrap;">
-                                <button type="button" class="btn btn-sm btn-primary r-btn-edit" style="padding:2px 6px; font-size:11px; min-height:28px;">✏️</button>
-                                <button type="button" class="btn btn-sm btn-danger r-btn-delete" style="padding:2px 6px; font-size:11px; min-height:28px;">🗑️</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            }
-            return;
-        }
-        this._vContainer = container;
-        this._renderVirtualWindowRegular(container);
-        if (this._vScrollHandler) {
-            container.removeEventListener('scroll', this._vScrollHandler);
-            this._vScrollHandler = null;
-        }
-        let ticking = false;
-        this._vScrollHandler = () => {
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(() => {
-                this._renderVirtualWindowRegular(container);
-                ticking = false;
-            });
-        };
-        container.addEventListener('scroll', this._vScrollHandler, { passive: true });
-    },
-
     _teardownVirtualRenderRegular: function() {
         if (this._vScrollHandler && this._vContainer) {
             this._vContainer.removeEventListener('scroll', this._vScrollHandler);
@@ -818,61 +790,6 @@ window.RegularEngine = {
         }
         this._vContainer = null;
         this._vFilteredRows = null;
-    },
-
-    _renderVirtualWindowRegular: function(container) {
-        const tbody = document.getElementById('regular-tbody');
-        const rows = this._vFilteredRows;
-        if (!tbody || !rows || rows.length === 0) return;
-        
-        const n = rows.length;
-        const rh = this.ROW_HEIGHT_ESTIMATE;
-        const scrollTop = container ? container.scrollTop : 0;
-        const containerHeight = container ? container.clientHeight : window.innerHeight;
-        
-        let start = Math.floor(scrollTop / rh) - this.BUFFER_ROWS;
-        let end = Math.ceil((scrollTop + containerHeight) / rh) + this.BUFFER_ROWS;
-        start = Math.max(0, Math.min(start, n - 1));
-        end = Math.max(start, Math.min(end, n - 1));
-        
-        const esc = window.Utils.escapeHtml.bind(window.Utils);
-        const methodIcons = {
-            'ប្រអប់': '📦',
-            'សន្តិសុខ': '👮',
-            'បុគ្គលិក': '🧑‍🏫',
-            'ម្ចាស់ទីតាំង': '🏠'
-        };
-        const methodOptions = Object.keys(methodIcons);
-        
-        let html = `<tr class="v-spacer" style="height:${start * rh}px;padding:0;border:0;"><td colspan="8" style="padding:0;border:0;"></td></tr>`;
-        for (let i = start; i <= end; i++) {
-            const r = rows[i];
-            const deliveredAtDisplay = r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : '';
-            const methodButtons = methodOptions.map(m => {
-                const active = r.method === m ? 'method-active' : '';
-                const icon = methodIcons[m] || m;
-                return `<button type="button" class="r-method-btn ${active}" data-method="${esc(m)}" title="${esc(m)}">${icon}</button>`;
-            }).join('');
-            const noteInput = `<input type="text" class="r-note-input" value="${esc(r.noteId)}" placeholder="ID" />`;
-            
-            html += `
-                <tr data-id="${esc(r.id)}">
-                    <td style="text-align:center;">${start + i + 1}</td>
-                    <td style="text-align:center;"><strong>${esc(r.houseNumber)}</strong></td>
-                    <td style="text-align:left;">${esc(r.customerName)}</td>
-                    <td style="text-align:center;">${esc(r.boxNumber)}</td>
-                    <td style="text-align:center;"><div class="r-method-buttons">${methodButtons}</div></td>
-                    <td style="text-align:center;">${noteInput}</td>
-                    <td class="r-time-display" style="text-align:center;font-size:11px;color:var(--text-secondary);font-weight:bold;">${deliveredAtDisplay}</td>
-                    <td style="text-align:center;white-space:nowrap;">
-                        <button type="button" class="btn btn-sm btn-primary r-btn-edit" style="padding:2px 6px; font-size:11px; min-height:28px;">✏️</button>
-                        <button type="button" class="btn btn-sm btn-danger r-btn-delete" style="padding:2px 6px; font-size:11px; min-height:28px;">🗑️</button>
-                    </td>
-                </tr>
-            `;
-        }
-        html += `<tr class="v-spacer" style="height:${(n - 1 - end) * rh}px;padding:0;border:0;"><td colspan="8" style="padding:0;border:0;"></td></tr>`;
-        tbody.innerHTML = html;
     },
 
     // ---- Export ----
