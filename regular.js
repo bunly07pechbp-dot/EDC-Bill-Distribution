@@ -1,9 +1,9 @@
 // ==========================================================================
 // 📊 Regular Module – Complete Management (Import, CRUD, Status, Export)
 // --------------------------------------------------------------------------
-// Fix: Guaranteed Unique IDs (Solves 13-tick limit / overwriting)
-// Fix: Progressive Rendering (Solves >150 items 13-row bug)
-// Fix: Targeted DOM Update (Solves Scroll Jumping when ticking)
+// Fix 1: Guaranteed Unique IDs (Solves 13-tick limit / overwriting)
+// Fix 2: Progressive Rendering (Solves >150 items 13-row bug)
+// Fix 3: Targeted DOM Update (Solves Scroll Jumping when ticking)
 // ==========================================================================
 
 window.RegularEngine = {
@@ -49,7 +49,7 @@ window.RegularEngine = {
             if (Array.isArray(raw)) {
                 raw.forEach((r, idx) => {
                     let rec = this._normalizeRecord(r, idx);
-                    // 🛠️ Auto-Heal: ប្រសិនបើ ID ជាន់គ្នា យើងបង្កើតថ្មី
+                    // 🛠️ Auto-Heal: ប្រសិនបើ ID ជាន់គ្នា យើងបង្កើតថ្មីដើម្បីឱ្យអាចធីកបានគ្រប់គ្នា
                     if (seenIds.has(rec.id)) {
                         rec.id = this._generateUniqueId(idx);
                     }
@@ -273,7 +273,7 @@ window.RegularEngine = {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
-    // ---- Event Binding ----
+    // ---- Event Binding (with Targeted DOM Update) ----
     bindEvents: function() {
         document.getElementById('btn-regular-import')?.addEventListener('click', () => {
             document.getElementById('regular-file-input')?.click();
@@ -318,7 +318,7 @@ window.RegularEngine = {
             const record = this._data.find(r => String(r.id) === String(id));
             if (!record) return;
 
-            // 🚀 TARGETED DOM UPDATE: កែប្រែតែជួរដែលបានធីក ការពារការលោត Scroll ទៅលើវិញ
+            // 🚀 TARGETED DOM UPDATE: កែប្រែតែជួរដែលបានធីក ការពារការលោត Scroll
             if (target.classList.contains('r-method-btn')) {
                 const method = target.dataset.method;
                 if (record.method === method) {
@@ -336,9 +336,9 @@ window.RegularEngine = {
 
                 const hideDelivered = document.getElementById('regular-hide-delivered')?.checked;
                 if (hideDelivered && record.deliveredAt) {
-                    row.remove(); // បើគេធីក "លាក់អ្នកចែករួច" គឺលុបជួរនេះចេញពីអេក្រង់
+                    row.remove(); // លុបជួរនេះចេញពីអេក្រង់បើធីក "លាក់អ្នកចែករួច"
                 } else {
-                    // Update ពណ៌ប៊ូតុងដោយផ្ទាល់
+                    // កែពណ៌ប៊ូតុងផ្ទាល់
                     const methodIcons = { 'ប្រអប់': '📦', 'សន្តិសុខ': '👮', 'បុគ្គលិក': '🧑‍🏫', 'ម្ចាស់ទីតាំង': '🏠' };
                     const methodOptions = Object.keys(methodIcons);
                     const esc = window.Utils.escapeHtml.bind(window.Utils);
@@ -667,6 +667,9 @@ window.RegularEngine = {
         };
         const methodOptions = Object.keys(methodIcons);
 
+        // បិទ Virtual Render ចាស់ដែលបង្ក Bug 13 ចោលទាំងស្រុង
+        this._teardownVirtualRenderRegular();
+
         // ---- Desktop Table Render ----
         if (pageData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
@@ -806,8 +809,6 @@ window.RegularEngine = {
         }
     },
 
-    // 🛑 មុខងារ Virtual Scrolling ចាស់ (ដែលបង្កបញ្ហា ១៣ ជួរ) ត្រូវបានបិទចោលទាំងស្រុង
-    _setupVirtualRenderRegular: function() {},
     _teardownVirtualRenderRegular: function() {
         if (this._vScrollHandler && this._vContainer) {
             this._vContainer.removeEventListener('scroll', this._vScrollHandler);
@@ -816,7 +817,6 @@ window.RegularEngine = {
         this._vContainer = null;
         this._vFilteredRows = null;
     },
-    _renderVirtualWindowRegular: function(container) {},
 
     // ---- Export ----
     exportExcel: function() {
