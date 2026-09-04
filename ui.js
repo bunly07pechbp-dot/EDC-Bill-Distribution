@@ -193,11 +193,11 @@ window.UI = {
             jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJump(); });
         }
 
-        // 🚀 GLOBAL EVENT DELEGATION: ធានាថាការចុចធីកដំណើរការ ១០០% ទោះ Rendering បែបណាក៏ដោយ
+        // 🚀 GLOBAL EVENT DELEGATION: ដោះស្រាយបញ្ហាចុចមិនបាននៅក្នុងសន្លឹកកិច្ចការ (Job)
         if (!this._eventsBound) {
             document.body.addEventListener('click', (e) => {
                 
-                // ១. ពេលចុចប៊ូតុង "👆 ជ្រើសរើស" ឬ ជួរក្នុងតារាង Job
+                // ១. ពេលចុចប៊ូតុង "👆 ជ្រើសរើស" ក្នុងតារាង Job លើកុំព្យូទ័រ
                 const methodBtn = e.target.closest('.method-select-btn');
                 const row = e.target.closest('tr.clickable-row');
                 
@@ -219,7 +219,7 @@ window.UI = {
                     return;
                 }
 
-                // ២. ពេលចុចជ្រើសរើសប្រភេទ (ប្រអប់, សន្តិសុខ...) ក្នុង Modal
+                // ២. ពេលចុចជ្រើសរើសប្រភេទ (ប្រអប់, សន្តិសុខ...) ក្នុង Modal របស់ Job
                 const modalOpt = e.target.closest('.method-option');
                 const activeModal = e.target.closest('#method-picker-modal');
                 if (modalOpt && activeModal) {
@@ -238,7 +238,7 @@ window.UI = {
                     return;
                 }
 
-                // ៤. ពេលចុចប៊ូតុងរហ័ស លើកាតខាងលើ (Quick Actions)
+                // ៤. ពេលចុចប៊ូតុងរហ័ស លើកាតខាងលើ (Quick Actions លើទូរស័ព្ទ) នៅក្នុង Job
                 const quickBtn = e.target.closest('.quick-method-btn');
                 if (quickBtn) {
                     window.UI.commitSelection(quickBtn.dataset.invoice, quickBtn.dataset.method); 
@@ -279,40 +279,6 @@ window.UI = {
         if (importJsonBtn && restoreFileInput) {
             importJsonBtn.addEventListener('click', () => restoreFileInput.click());
         }
-
-        // Regular Fields listener (Global Change Event)
-        document.addEventListener('change', function(e) {
-            const target = e.target;
-            if (target.classList.contains('regular-receiver-input') ||
-                target.classList.contains('regular-signature-input')) {
-                
-                const invoice = target.dataset.invoice;
-                const field = target.classList.contains('regular-receiver-input') ? 'regularReceiverName' : 'regularSignature';
-                const value = target.value;
-                
-                let row = null;
-                if (window.isRegularJob) {
-                    row = window.currentExportData?.find(r => window.Utils.normalizeIN(r.invoice) === window.Utils.normalizeIN(invoice));
-                } else {
-                    row = window.Utils.findByInvoice(invoice);
-                }
-                
-                if (row) {
-                    row[field] = value;
-                    if (window.isRegularJob && window.activeJobId) {
-                        const job = window.distributionJobs?.find(j => j.id === window.activeJobId);
-                        if (job && job.regularData) {
-                            const idx = job.regularData.findIndex(r => window.Utils.normalizeIN(r.invoice) === window.Utils.normalizeIN(invoice));
-                            if (idx !== -1) {
-                                job.regularData[idx][field] = value;
-                                window.JobsEngine?.saveJobs?.();
-                            }
-                        }
-                    }
-                    window.StorageEngine.persistAll();
-                }
-            }
-        });
 
         console.log('✅ UI.init() completed');
     },
@@ -699,26 +665,6 @@ window.UI = {
         let boxDisplay = esc(row.box);
         if (row.door && row.boxNumber) boxDisplay = `${esc(row.door)}-${esc(row.boxNumber)}`;
 
-        const isRegular = window.isRegularJob || false;
-        const regularFields = isRegular ? `
-            <td style="min-width:100px;"><span class="regular-time-display" data-invoice="${invId}">${esc(row.regularReceivedTime || '')}</span></td>
-            <td style="min-width:160px;"><input type="text" class="regular-receiver-input" data-invoice="${invId}" value="${esc(row.regularReceiverName || '')}" placeholder="ឈ្មោះអ្នកទទួល / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
-            <td style="min-width:140px;"><input type="text" class="regular-signature-input" data-invoice="${invId}" value="${esc(row.regularSignature || '')}" placeholder="ហត្ថលេខា / ID..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--bg-input); color:var(--text); font-family:inherit;"></td>
-        ` : '';
-
-        if (isRegular) {
-            return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
-                <td class="col-sticky col-sticky-num">${idx}</td>
-                <td style="font-family:monospace;font-weight:bold;">${invId}</td>
-                <td class="col-sticky col-sticky-name" style="text-align:left;"><strong>${esc(row.name)}</strong></td>
-                <td style="color:#ea580c;font-weight:bold;" title="ប.ត: ${boxDisplay}">${boxDisplay}</td>
-                <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${esc(row.address)}</td>
-                <td><button type="button" class="method-select-btn ${row.method ? 'method-selected method-' + window.Utils.primaryMethod(row.method) : ''}" id="method-btn-${invId}" data-invoice="${invId}" data-current-method="${row.method||''}">${row.method ? '✓ ' + this.methodLabel(row.method) : '👆 ជ្រើសរើស'}</button></td>
-                ${regularFields}
-                <td class="col-sticky col-sticky-status"><div class="status-cell"><span id="badge_${invId}" class="${badgeClass}">${badgeText}</span><span id="date_${invId}" class="status-date">${row.deliveredAt ? esc(row.deliveredAt) : ''}</span></div></td>
-            </tr>`;
-        }
-
         return `<tr id="row_${invId}" class="clickable-row" data-invoice="${invId}" data-current-method="${row.method||''}" data-search="${searchBlob}">
             <td class="col-sticky col-sticky-num">${idx}</td>
             <td style="color:#2563eb;font-weight:bold;">${esc(row.cabin)}</td>
@@ -739,38 +685,22 @@ window.UI = {
         const thead = document.getElementById('table-thead');
         if (!tbody || !thead) return;
         
-        const isRegular = window.isRegularJob || false;
         let theadHTML = `<tr><th class="col-sticky col-sticky-num">ល.រ</th>`;
-        if (isRegular) {
-            theadHTML += `
-                <th>លេខ IN</th>
-                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
-                <th>ប.ត</th>
-                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
-                <th>វិធីចែក</th>
-                <th style="min-width:100px;">ម៉ោងទទួល</th>
-                <th style="min-width:160px;">ឈ្មោះអ្នកទទួល / ID</th>
-                <th style="min-width:140px;">ហត្ថលេខា / ID</th>
-                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
-            `;
-        } else {
-            theadHTML += `
-                <th>កាប៊ីន</th>
-                <th>ប្រអប់</th>
-                <th>លេខ IN</th>
-                <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
-                <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
-                <th>វិធីចែក</th>
-                <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
-            `;
-        }
-        theadHTML += `</tr>`;
+        theadHTML += `
+            <th>កាប៊ីន</th>
+            <th>ប្រអប់</th>
+            <th>លេខ IN</th>
+            <th class="col-sticky col-sticky-name" style="text-align:left;">ឈ្មោះ</th>
+            <th style="text-align:left; min-width:200px;">អាសយដ្ឋាន</th>
+            <th>វិធីចែក</th>
+            <th class="col-sticky col-sticky-status">ស្ថានភាព</th>
+        </tr>`;
         thead.innerHTML = theadHTML;
 
         this._teardownVirtualRender();
 
         if (!data || data.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`; 
             return; 
         }
         
@@ -783,7 +713,7 @@ window.UI = {
         });
         
         if (filtered.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="${isRegular ? 10 : 8}" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; 
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:#16a34a;">🎉 គ្មានទិន្នន័យបង្ហាញ</td></tr>`; 
             return; 
         }
 
@@ -870,7 +800,6 @@ window.UI = {
     },
 
     clearFieldMode: function() {
-        console.log('🧹 Clearing field mode UI (keeping data)...');
         const tbody = document.getElementById('table-body');
         if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">📭 គ្មានទិន្នន័យ</td></tr>`;
         document.getElementById('next-up-cards').innerHTML = '';
