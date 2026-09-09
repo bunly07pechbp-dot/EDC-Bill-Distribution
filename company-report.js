@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🏢 COMPANY REPORT ENGINE (Mobile-Optimized & Theme-Consistent Layout)
+// 🏢 COMPANY REPORT ENGINE (Mobile-Optimized & Smart Excel Parser)
 // ==========================================================================
 
 window.CompanyReport = {
@@ -275,27 +275,59 @@ window.CompanyReport = {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                
+                // អានទិន្នន័យជាទម្រង់ Array ជួរដេកនិងឈរ (Row x Col)
+                const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
 
-                if (json && json.length > 0) {
-                    // កែសម្រួល៖ បញ្ចូលឈ្មោះក្រុមហ៊ុនថ្មីពី Excel ទៅកាន់ Master Data
+                if (aoa && aoa.length > 0) {
                     let updatedCount = 0;
-                    if (window.masterData && window.masterData.length > 0) {
+                    let currentCompany = "";
+                    let companyMapping = [];
+
+                    // ១. ស្កេនរកឈ្មោះក្រុមហ៊ុន និងលេខ IN (Smart Extract)
+                    for (let i = 0; i < aoa.length; i++) {
+                        const row = aoa[i];
+                        if (!row || row.length === 0) continue;
+
+                        const col0 = String(row[0] || "").trim();
+                        const col1 = String(row[1] || "").trim();
+
+                        // បើជួរនោះមានពាក្យ "ក្រុមហ៊ុន" (តែមិនមែនពាក្យ "ស្ថាប័ន") វានឹងចាប់យកឈ្មោះក្រុមហ៊ុន
+                        if (col0.includes('ក្រុមហ៊ុន') && !col0.includes('ស្ថាប័ន')) {
+                            const parts = col0.split('ក្រុមហ៊ុន');
+                            if (parts.length > 1) {
+                                currentCompany = parts[parts.length - 1].trim();
+                            }
+                        } 
+                        // បើមានឈ្មោះក្រុមហ៊ុនហើយ ជួរនោះមានលេខ IN វានឹងចងទិន្នន័យចូលគ្នា
+                        else if (currentCompany && col1 && !isNaN(col1) && col1.length >= 6) {
+                            companyMapping.push({ invoice: col1, company: currentCompany });
+                        }
+                    }
+
+                    // (Fallback) បើទម្រង់ឯកសារផ្សេង ជាតារាងធម្មតា
+                    if (companyMapping.length === 0) {
+                        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                         json.forEach(row => {
-                            // រកមើល Column ដែលជាលេខ IN និង ក្រុមហ៊ុន 
-                            const invoice = row['លេខIN'] || row['IN'] || row['invoice'] || row['id'];
-                            const company = row['ក្រុមហ៊ុន'] || row['company'] || row['Company Name'];
+                            const inv = row['លេខIN'] || row['IN'] || row['invoice'] || row['id'];
+                            const comp = row['ក្រុមហ៊ុន'] || row['company'] || row['Company Name'];
+                            if (inv && comp) {
+                                companyMapping.push({ invoice: String(inv).trim(), company: String(comp).trim() });
+                            }
+                        });
+                    }
+
+                    // ២. យកទៅ Update ចូល Master Data
+                    if (companyMapping.length > 0 && window.masterData && window.masterData.length > 0) {
+                        companyMapping.forEach(mapping => {
+                            const canonicalInv = window.Utils ? window.Utils.normalizeIN(mapping.invoice) : mapping.invoice;
+                            const masterRow = window.masterData.find(r => 
+                                (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
+                            );
                             
-                            if (invoice && company) {
-                                const canonicalInv = window.Utils ? window.Utils.normalizeIN(invoice) : String(invoice).trim();
-                                const masterRow = window.masterData.find(r => 
-                                    (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
-                                );
-                                
-                                if (masterRow) {
-                                    masterRow.company = company;
-                                    updatedCount++;
-                                }
+                            if (masterRow) {
+                                masterRow.company = mapping.company;
+                                updatedCount++;
                             }
                         });
                         
@@ -303,17 +335,19 @@ window.CompanyReport = {
                     }
 
                     if (window.Utils?.showAlert) {
-                        window.Utils.showAlert(`✅ នាំចូល Excel បាន ${json.length} ជួរ និង Update ឈ្មោះក្រុមហ៊ុនបាន ${updatedCount} ទីតាំង!`);
+                        window.Utils.showAlert(`✅ រកឃើញទិន្នន័យក្រុមហ៊ុន និងបាន Update ចំនួន ${updatedCount} ទីតាំង!`);
+                    } else {
+                        alert(`✅ រកឃើញទិន្នន័យក្រុមហ៊ុន និងបាន Update ចំនួន ${updatedCount} ទីតាំង!`);
                     }
                     
-                    // គូររបាយការណ៍ថ្មី
+                    // ៣. បញ្ជាឱ្យគូររបាយការណ៍ថ្មី
                     this.generateFromMaster();
                 }
             } catch (err) {
                 console.error("Import Error:", err);
-                alert('❌ មិនអាចអានហ្វាល់ Excel បានទេ! លំនាំទម្រង់ខុសប្រក្រតី។');
+                alert('❌ មិនអាចអានហ្វាល់ Excel បានទេ! សូមពិនិត្យមើលទម្រង់ឯកសារ។');
             } finally {
-                // Clear input value ដើម្បីអាច Import ហ្វាល់ដដែលបានម្តងទៀតបើចាំបាច់
+                // Clear input value ដើម្បីអាច Import ហ្វាល់ដដែលបានម្តងទៀត
                 const fileInput = document.getElementById('company-file-input');
                 if (fileInput) fileInput.value = '';
             }
