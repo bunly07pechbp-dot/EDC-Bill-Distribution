@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================================================
-    // 📱 3. មុខងារលោតផ្ទាំងបញ្ជីឈ្មោះ Digital ពេលចុចលើកាត DIGITAL
+    // 📱 3. មុខងារលោតផ្ទាំងបញ្ជីឈ្មោះ Digital (បានជួសជុលបញ្ហាចុចមិនចេញ)
     // ==========================================================================
     const digitalModalHtml = `
         <div class="method-picker-overlay" id="digital-list-modal" style="display:none; z-index: 99999;">
@@ -97,38 +97,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ចាប់ការចុចលើកាត "DIGITAL" នៅលើផ្ទាំង Dashboard
+    // 🚀 ការចាប់ចំណុចចុច (Smart Click Detection) ធានាថាចុចចេញ ១០០%
     document.body.addEventListener('click', (e) => {
-        // ស្វែងរកកាតដែលអ្នកចុច
-        const statCard = e.target.closest('div.stat-card') || e.target.closest('div'); 
+        let targetEl = e.target;
         
-        // បើកាតនោះមានពាក្យ "DIGITAL" (តែមិនមែន PENDING ទេ)
-        if (statCard && statCard.textContent.includes('DIGITAL') && !statCard.textContent.includes('PENDING')) {
+        // រាវរកឡើងលើរហូតដល់រកឃើញកាតដែលអ្នកចុច
+        while (targetEl && targetEl !== document.body) {
             
-            // ទាញយកអ្នកដែលប្រើ Digital ពី Master Data
-            const digitalData = (window.masterData || []).filter(r => 
-                r.method && r.method.toLowerCase().includes('digital')
-            );
+            // ពិនិត្យមើលតែ Element ជាប្រអប់ (DIV) ប៉ុណ្ណោះ
+            if (targetEl.tagName === 'DIV') {
+                const text = (targetEl.innerText || targetEl.textContent || '').toUpperCase();
+                
+                // បើប្រអប់នេះមានពាក្យ DIGITAL ហើយ "មិនមានពាក្យ DELIVERED/PENDING" 
+                // គឺដើម្បីប្រាកដថាវាជាកាត Digital តូច មិនមែនប្រអប់ធំរុំពីក្រៅទេ
+                if (text.includes('DIGITAL') && !text.includes('PENDING') && !text.includes('DELIVERED')) {
+                    
+                    e.preventDefault(); // ទប់កុំឱ្យរត់ទៅកូដផ្សេង
+                    e.stopPropagation();
 
-            document.getElementById('digital-list-count').innerText = digitalData.length;
-            const tbody = document.getElementById('digital-list-tbody');
+                    // ទាញយកអ្នកដែលប្រើ Digital ពី Master Data
+                    const digitalData = (window.masterData || []).filter(r => 
+                        r.method && r.method.toLowerCase().includes('digital')
+                    );
 
-            if (digitalData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-secondary);">📭 មិនទាន់មានអតិថិជន Digital ទេ</td></tr>';
-            } else {
-                tbody.innerHTML = digitalData.map((r, i) => `
-                    <tr style="border-bottom: 1px solid var(--border, #334155);">
-                        <td style="padding: 10px 8px; color: var(--text-secondary, #94a3b8);">${i + 1}</td>
-                        <td style="padding: 10px 8px; font-family: monospace;"><strong>${r.invoice || r.houseNumber || ''}</strong></td>
-                        <td style="padding: 10px 8px;">${r.name || r.customerName || 'N/A'}</td>
-                        <td style="padding: 10px 8px; color: #ea580c; font-weight: bold;">${r.box || r.boxNumber || 'N/A'}</td>
-                    </tr>
-                `).join('');
+                    document.getElementById('digital-list-count').innerText = digitalData.length;
+                    const tbody = document.getElementById('digital-list-tbody');
+
+                    if (digitalData.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-secondary);">📭 មិនទាន់មានអតិថិជន Digital ទេ</td></tr>';
+                    } else {
+                        tbody.innerHTML = digitalData.map((r, i) => `
+                            <tr style="border-bottom: 1px solid var(--border, #334155);">
+                                <td style="padding: 10px 8px; color: var(--text-secondary, #94a3b8);">${i + 1}</td>
+                                <td style="padding: 10px 8px; font-family: monospace;"><strong>${r.invoice || r.houseNumber || ''}</strong></td>
+                                <td style="padding: 10px 8px;">${r.name || r.customerName || 'N/A'}</td>
+                                <td style="padding: 10px 8px; color: #ea580c; font-weight: bold;">${r.box || r.boxNumber || 'N/A'}</td>
+                            </tr>
+                        `).join('');
+                    }
+
+                    // បង្ហាញ Modal ឡើង
+                    if (digitalModal) {
+                        digitalModal.style.display = 'flex';
+                        setTimeout(() => digitalModal.classList.add('active'), 10);
+                    }
+                    return; // បញ្ឈប់ការស្វែងរកនៅពេលបើកចេញហើយ
+                }
             }
-
-            // បង្ហាញ Modal ឡើង
-            digitalModal.style.display = 'flex';
-            setTimeout(() => digitalModal.classList.add('active'), 10);
+            targetEl = targetEl.parentElement;
         }
     });
     console.log('✅ Digital List feature initialized');
