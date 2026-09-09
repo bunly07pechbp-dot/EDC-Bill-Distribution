@@ -7,19 +7,6 @@ window.currentExportData = [];
 window.currentCabinGlobal = "Unknown";
 
 // ==========================================================================
-// 📱 PWA Service Worker Registration - បិទសម្រាប់ local file
-// ==========================================================================
-/*
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-            .then(reg => console.log('🎯 PWA Offline System Active!', reg.scope))
-            .catch(err => console.error('❌ PWA Error:', err));
-    });
-}
-*/
-
-// ==========================================================================
 // 🚀 មុខងារបើកផ្ទាំងបញ្ជីឈ្មោះ Digital (Global Function)
 // ==========================================================================
 window.openDigitalModal = function() {
@@ -70,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Archive Engine
     if (window.ArchiveEngine) {
         window.ArchiveEngine.init();
-        console.log('✅ Archive Engine initialized');
     }
 
     // 2. Clear Memory Button
@@ -80,12 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm('🧹 តើអ្នកចង់សម្អាត Memory និងទិន្នន័យបណ្តោះអាសន្នទាំងអស់មែនទេ?\n\n⚠️ ទិន្នន័យ Master Database នឹងមិនរងផលប៉ះពាល់ទេ។')) {
                 if (window.UI && typeof window.UI.clearAllData === 'function') {
                     window.UI.clearAllData();
-                    if (window.gc) {
-                        try { window.gc(); } catch (e) { /* ignore */ }
-                    }
+                    if (window.gc) { try { window.gc(); } catch (e) { /* ignore */ } }
                     window.Utils.showAlert('✅ បានសម្អាត Memory និងទិន្នន័យបណ្តោះអាសន្នរួចរាល់!');
-                } else {
-                    window.Utils.showAlert('⚠️ មុខងារសម្អាត Memory មិនទាន់ត្រូវបានផ្ទុកទេ។');
                 }
             }
         });
@@ -123,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         document.body.insertAdjacentHTML('beforeend', digitalModalHtml);
 
-        // បិទ Modal ពេលចុចសញ្ញាខ្វែង ឬ ស៊ុមខាងក្រៅ
         document.getElementById('digital-list-close')?.addEventListener('click', window.closeDigitalModal);
         document.getElementById('digital-list-modal')?.addEventListener('click', (e) => {
             if (e.target.id === 'digital-list-modal') window.closeDigitalModal();
@@ -131,59 +112,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================================================
-    // 🚀 4. Aggressive Scanner - ធានាថាចាប់បានកាត DIGITAL ១០០% និងអាចចុចបាន
+    // 🚀 4. Mobile Touch System (ប្រព័ន្ធចាប់ការចុចលើទូរស័ព្ទដៃ)
     // ==========================================================================
+    
+    // កត់ត្រាទុកពេលអ្នកកំពុងអូស (Scroll) ដើម្បីកុំឱ្យវាលោតច្រឡំពេលកំពុងអូស
+    let isScrollingMobile = false;
+    let touchStartY = 0;
+    
+    document.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+        isScrollingMobile = false;
+    }, { passive: true });
+    
+    document.addEventListener('touchmove', (e) => {
+        if (Math.abs(e.touches[0].clientY - touchStartY) > 10) {
+            isScrollingMobile = true;
+        }
+    }, { passive: true });
+
+    // Aggressive Scanner ដែល Support ទាំង Click និង Touch
     setInterval(() => {
-        // រាវរកប្រអប់ទាំងអស់ដែលមាននៅលើអេក្រង់
-        const allDivs = document.querySelectorAll('div');
+        const allCards = document.querySelectorAll('.stat-card, div'); // រាវរកកាត
         
-        allDivs.forEach(div => {
-            const text = (div.textContent || '').toUpperCase();
+        allCards.forEach(card => {
+            const text = (card.textContent || '').toUpperCase();
             
-            // លក្ខខណ្ឌ៖ ត្រូវតែមានពាក្យ "DIGITAL", មិនមែនជា Modal ខ្លួនឯង, និងអក្សរខ្លីល្មម (< 50 តួអក្សរ) ជាកាត
+            // លក្ខខណ្ឌកាត DIGITAL (ពង្រីក length ដល់ 100 ដើម្បី Support អេក្រង់ទូរស័ព្ទ)
             if (text.includes('DIGITAL') && 
                 !text.includes('បញ្ជីឈ្មោះ') && 
                 !text.includes('DELIVERED') && 
                 !text.includes('PENDING') && 
-                text.length < 50) {
+                text.length < 100) {
                 
-                // ត្រូវប្រាកដថាវាជាប្រអប់កាតមែន (មានធាតុខាងក្នុង)
-                if (div.children.length > 0 && !div.dataset.digitalClickReady) {
-                    
-                    // សម្គាល់កាតនេះ និងប្តូររូបរាង Cursor ឱ្យដឹងថាអាចចុចបាន
-                    div.dataset.digitalClickReady = "true";
-                    div.style.cursor = 'pointer';
-                    div.title = 'ចុចដើម្បីមើលបញ្ជីឈ្មោះ Digital';
+                if (card.children.length > 0 && !card.dataset.digitalClickReady) {
+                    card.dataset.digitalClickReady = "true";
+                    card.style.cursor = 'pointer';
 
-                    // បង្ខំដាក់ Event ចូលដោយផ្ទាល់ (ប្រើ true (Capture) ដើម្បីរត់មុនកូដដទៃ)
-                    div.addEventListener('click', (e) => {
+                    // មុខងារបើក Modal (ប្រើបានទាំង PC ទាំង Mobile)
+                    const triggerModal = (e) => {
+                        if (isScrollingMobile) return; // បើកំពុងអូស មិនឱ្យលោតទេ
                         e.preventDefault();
-                        e.stopPropagation(); // Block កុំឱ្យកូដចាស់ៗរំខាន
+                        e.stopPropagation();
                         window.openDigitalModal();
-                    }, true);
+                    };
+
+                    // ដាក់ Event ២ ប្រភេទ (Click សម្រាប់កុំព្យូទ័រ, Touchend សម្រាប់ទូរស័ព្ទដៃ)
+                    card.addEventListener('click', triggerModal, true);
+                    card.addEventListener('touchend', triggerModal, true);
                 }
             }
         });
-    }, 1000); // ស្កេនរៀងរាល់ ១ វិនាទី (១០០០ms) ការពារករណីកាតទើបនឹងលោតចេញមកថ្មី
+    }, 1000);
 
-    console.log('✅ All modules initialized');
+    console.log('✅ Mobile Touch Support initialized');
 });
 
 // ==========================================================================
 // 🛡️ Global Error Handler
 // ==========================================================================
 window.addEventListener('error', (e) => {
-    console.error('❌ Global Error:', e.message, e.filename, e.lineno);
-    if (e.message && e.message.includes('out of memory')) {
-        window.Utils.showAlert('⚠️ ឧបករណ៍របស់អ្នកកំពុងដំណើរការលើសទំហំ Memory!\n\nសូមចុច "🧹 សម្អាត Memory" ដើម្បីដោះស្រាយបញ្ហា។');
-    }
+    console.error('❌ Global Error:', e.message);
 });
-
-// ==========================================================================
-// 🛡️ Unhandled Promise Rejection Handler
-// ==========================================================================
 window.addEventListener('unhandledrejection', (e) => {
-    console.error('❌ Unhandled Promise Rejection:', e.reason);
+    console.error('❌ Unhandled Promise:', e.reason);
 });
-
-console.log('📦 EDC Route Billing System loaded successfully!');
