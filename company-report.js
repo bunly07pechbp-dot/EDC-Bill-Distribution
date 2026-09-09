@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🏢 COMPANY REPORT ENGINE (Mobile-Optimized & Smart Excel Parser)
+// 🏢 COMPANY REPORT ENGINE (Smart Parser & Direct Render)
 // ==========================================================================
 
 window.CompanyReport = {
@@ -24,7 +24,7 @@ window.CompanyReport = {
                     <div style="position: relative; overflow: hidden; width: 100%;">
                         <input type="file" id="company-file-input" accept=".xlsx, .xls" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:10;" />
                         <button class="btn" style="background: #6366f1; color: white; width: 100%; min-height: 44px; font-size: 13px; font-weight: 700; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                            📥 នាំចូល Excel
+                            📥 នាំចូល Excel ក្រុមហ៊ុន
                         </button>
                     </div>
 
@@ -134,7 +134,6 @@ window.CompanyReport = {
             const item = compMap.get(compName);
             item.total++;
 
-            // កែសម្រួល៖ បំប្លែងទៅជាអក្សរតូចសិន ការពារកំហុសអក្សរធំតូច (Case Sensitivity)
             const isDig = r.digitalNote || (r.method && String(r.method).toLowerCase().includes('digital'));
             if (isDig) {
                 item.digital++;
@@ -144,7 +143,6 @@ window.CompanyReport = {
         });
 
         const list = Array.from(compMap.values());
-        // Sort: Other ទៅក្រោមគេ
         list.sort((a, b) => {
             if (a.name === 'Other') return 1;
             if (b.name === 'Other') return -1;
@@ -155,7 +153,7 @@ window.CompanyReport = {
         this.renderCompanies();
         this.updateStats();
 
-        if (window.Utils?.showAlert) window.Utils.showAlert('✅ បង្កើតរបាយការណ៍ក្រុមហ៊ុនជោគជ័យ!');
+        if (window.Utils?.showAlert) window.Utils.showAlert('✅ បង្កើតរបាយការណ៍ពី Master រួចរាល់!');
     },
 
     renderCompanies: function() {
@@ -166,8 +164,7 @@ window.CompanyReport = {
 
         const list = this._companiesList || [];
         if (list.length === 0) {
-            this.generateFromMaster();
-            return;
+            return; // កុំហៅ generateFromMaster ស្វ័យប្រវត្តិ ការពារការបាត់ទិន្នន័យពីហ្វាល់
         }
 
         const esc = (s) => (window.Utils?.escapeHtml ? window.Utils.escapeHtml(s) : String(s || ''));
@@ -276,78 +273,105 @@ window.CompanyReport = {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
                 
-                // អានទិន្នន័យជាទម្រង់ Array ជួរដេកនិងឈរ (Row x Col)
+                // អានជាទម្រង់ Array ជួរដេកនិងឈរ
                 const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
 
                 if (aoa && aoa.length > 0) {
+                    let currentCompany = "Other";
+                    const compMap = new Map();
                     let updatedCount = 0;
-                    let currentCompany = "";
-                    let companyMapping = [];
 
-                    // ១. ស្កេនរកឈ្មោះក្រុមហ៊ុន និងលេខ IN (Smart Extract)
+                    // ១. ស្កេនទិន្នន័យពីហ្វាល់ផ្ទាល់
                     for (let i = 0; i < aoa.length; i++) {
                         const row = aoa[i];
                         if (!row || row.length === 0) continue;
 
                         const col0 = String(row[0] || "").trim();
                         const col1 = String(row[1] || "").trim();
+                        
+                        // ឆែកមើលពាក្យ Digital នៅក្នុងជួរនេះទាំងមូល
+                        const rowString = row.join(" ").toLowerCase();
+                        const isDigital = rowString.includes('digital');
 
-                        // បើជួរនោះមានពាក្យ "ក្រុមហ៊ុន" (តែមិនមែនពាក្យ "ស្ថាប័ន") វានឹងចាប់យកឈ្មោះក្រុមហ៊ុន
+                        // បើជួរនោះជាក្បាលក្រុមហ៊ុន
                         if (col0.includes('ក្រុមហ៊ុន') && !col0.includes('ស្ថាប័ន')) {
                             const parts = col0.split('ក្រុមហ៊ុន');
                             if (parts.length > 1) {
                                 currentCompany = parts[parts.length - 1].trim();
                             }
                         } 
-                        // បើមានឈ្មោះក្រុមហ៊ុនហើយ ជួរនោះមានលេខ IN វានឹងចងទិន្នន័យចូលគ្នា
-                        else if (currentCompany && col1 && !isNaN(col1) && col1.length >= 6) {
-                            companyMapping.push({ invoice: col1, company: currentCompany });
+                        // បើជួរនោះជាលេខ IN
+                        else if (col1 && !isNaN(col1.replace(/[^0-9]/g, '')) && col1.length >= 6) {
+                            
+                            // កត់ត្រាចូលរបាយការណ៍ Map ផ្ទាល់តែម្តង
+                            if (!compMap.has(currentCompany)) {
+                                compMap.set(currentCompany, { name: currentCompany, total: 0, digital: 0, physical: 0 });
+                            }
+                            const item = compMap.get(currentCompany);
+                            item.total++;
+                            if (isDigital) item.digital++;
+                            else item.physical++;
+
+                            // Update ចូល Master Data និង Job Data ដោយស្ងាត់ៗ (បើវាមានស៊ីគ្នា)
+                            const canonicalInv = window.Utils ? window.Utils.normalizeIN(col1) : col1;
+                            
+                            // Update Master
+                            if (window.masterData && window.masterData.length > 0) {
+                                const masterRow = window.masterData.find(r => 
+                                    (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
+                                );
+                                if (masterRow) {
+                                    masterRow.company = currentCompany;
+                                    if (isDigital && (!masterRow.method || !masterRow.method.toLowerCase().includes('digital'))) {
+                                        masterRow.method = 'digital';
+                                    }
+                                    updatedCount++;
+                                }
+                            }
+                            
+                            // Update Current Job (បើកំពុងបើក)
+                            if (window.currentExportData && window.currentExportData.length > 0) {
+                                const jobRow = window.currentExportData.find(r => 
+                                    (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
+                                );
+                                if (jobRow) {
+                                    jobRow.company = currentCompany;
+                                    if (isDigital && (!jobRow.method || !jobRow.method.toLowerCase().includes('digital'))) {
+                                        jobRow.method = 'digital';
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // (Fallback) បើទម្រង់ឯកសារផ្សេង ជាតារាងធម្មតា
-                    if (companyMapping.length === 0) {
-                        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        json.forEach(row => {
-                            const inv = row['លេខIN'] || row['IN'] || row['invoice'] || row['id'];
-                            const comp = row['ក្រុមហ៊ុន'] || row['company'] || row['Company Name'];
-                            if (inv && comp) {
-                                companyMapping.push({ invoice: String(inv).trim(), company: String(comp).trim() });
-                            }
-                        });
-                    }
+                    // ២. បញ្ចូនទិន្នន័យដែលចាប់បានទៅគូរជារបាយការណ៍ភ្លាមៗ!
+                    const list = Array.from(compMap.values());
+                    list.sort((a, b) => {
+                        if (a.name === 'Other') return 1;
+                        if (b.name === 'Other') return -1;
+                        return b.total - a.total;
+                    });
 
-                    // ២. យកទៅ Update ចូល Master Data
-                    if (companyMapping.length > 0 && window.masterData && window.masterData.length > 0) {
-                        companyMapping.forEach(mapping => {
-                            const canonicalInv = window.Utils ? window.Utils.normalizeIN(mapping.invoice) : mapping.invoice;
-                            const masterRow = window.masterData.find(r => 
-                                (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
-                            );
-                            
-                            if (masterRow) {
-                                masterRow.company = mapping.company;
-                                updatedCount++;
-                            }
-                        });
-                        
-                        if (window.StorageEngine) window.StorageEngine.saveMasterCache();
+                    this._companiesList = list;
+                    this.renderCompanies();
+                    this.updateStats();
+
+                    // ៣. Save ទិន្នន័យ
+                    if (window.StorageEngine) {
+                        window.StorageEngine.saveMasterCache();
+                        window.StorageEngine.saveSessionCache();
                     }
 
                     if (window.Utils?.showAlert) {
-                        window.Utils.showAlert(`✅ រកឃើញទិន្នន័យក្រុមហ៊ុន និងបាន Update ចំនួន ${updatedCount} ទីតាំង!`);
+                        window.Utils.showAlert(`✅ បង្កើតរបាយការណ៍ជោគជ័យ! (Update ទីតាំងចាស់បាន ${updatedCount})`);
                     } else {
-                        alert(`✅ រកឃើញទិន្នន័យក្រុមហ៊ុន និងបាន Update ចំនួន ${updatedCount} ទីតាំង!`);
+                        alert(`✅ បង្កើតរបាយការណ៍ជោគជ័យ!`);
                     }
-                    
-                    // ៣. បញ្ជាឱ្យគូររបាយការណ៍ថ្មី
-                    this.generateFromMaster();
                 }
             } catch (err) {
                 console.error("Import Error:", err);
                 alert('❌ មិនអាចអានហ្វាល់ Excel បានទេ! សូមពិនិត្យមើលទម្រង់ឯកសារ។');
             } finally {
-                // Clear input value ដើម្បីអាច Import ហ្វាល់ដដែលបានម្តងទៀត
                 const fileInput = document.getElementById('company-file-input');
                 if (fileInput) fileInput.value = '';
             }
