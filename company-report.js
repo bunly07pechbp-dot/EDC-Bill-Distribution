@@ -124,8 +124,8 @@ window.CompanyReport = {
 
         master.forEach(r => {
             let compName = r.company || r.companyName || r.ក្រុមហ៊ុន || 'Other';
-            if (!compName || compName.trim() === '') compName = 'Other';
-            compName = compName.trim();
+            if (!compName || String(compName).trim() === '') compName = 'Other';
+            compName = String(compName).trim();
 
             if (!compMap.has(compName)) {
                 compMap.set(compName, { name: compName, total: 0, digital: 0, physical: 0 });
@@ -134,7 +134,8 @@ window.CompanyReport = {
             const item = compMap.get(compName);
             item.total++;
 
-            const isDig = r.digitalNote || (r.method && String(r.method).includes('digital'));
+            // កែសម្រួល៖ បំប្លែងទៅជាអក្សរតូចសិន ការពារកំហុសអក្សរធំតូច (Case Sensitivity)
+            const isDig = r.digitalNote || (r.method && String(r.method).toLowerCase().includes('digital'));
             if (isDig) {
                 item.digital++;
             } else {
@@ -267,7 +268,6 @@ window.CompanyReport = {
     },
 
     importExcel: function(file) {
-        // Preserved multi-sheet or company workbook logic
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
@@ -275,14 +275,47 @@ window.CompanyReport = {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
+                const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
                 if (json && json.length > 0) {
-                    if (window.Utils?.showAlert) window.Utils.showAlert(`✅ នាំចូល Excel ក្រុមហ៊ុនបាន ${json.length} ជួរ!`);
+                    // កែសម្រួល៖ បញ្ចូលឈ្មោះក្រុមហ៊ុនថ្មីពី Excel ទៅកាន់ Master Data
+                    let updatedCount = 0;
+                    if (window.masterData && window.masterData.length > 0) {
+                        json.forEach(row => {
+                            // រកមើល Column ដែលជាលេខ IN និង ក្រុមហ៊ុន 
+                            const invoice = row['លេខIN'] || row['IN'] || row['invoice'] || row['id'];
+                            const company = row['ក្រុមហ៊ុន'] || row['company'] || row['Company Name'];
+                            
+                            if (invoice && company) {
+                                const canonicalInv = window.Utils ? window.Utils.normalizeIN(invoice) : String(invoice).trim();
+                                const masterRow = window.masterData.find(r => 
+                                    (window.Utils ? window.Utils.normalizeIN(r.invoice) : String(r.invoice).trim()) === canonicalInv
+                                );
+                                
+                                if (masterRow) {
+                                    masterRow.company = company;
+                                    updatedCount++;
+                                }
+                            }
+                        });
+                        
+                        if (window.StorageEngine) window.StorageEngine.saveMasterCache();
+                    }
+
+                    if (window.Utils?.showAlert) {
+                        window.Utils.showAlert(`✅ នាំចូល Excel បាន ${json.length} ជួរ និង Update ឈ្មោះក្រុមហ៊ុនបាន ${updatedCount} ទីតាំង!`);
+                    }
+                    
+                    // គូររបាយការណ៍ថ្មី
                     this.generateFromMaster();
                 }
             } catch (err) {
-                alert('❌ មិនអាចអានហ្វាល់ Excel បានទេ!');
+                console.error("Import Error:", err);
+                alert('❌ មិនអាចអានហ្វាល់ Excel បានទេ! លំនាំទម្រង់ខុសប្រក្រតី។');
+            } finally {
+                // Clear input value ដើម្បីអាច Import ហ្វាល់ដដែលបានម្តងទៀតបើចាំបាច់
+                const fileInput = document.getElementById('company-file-input');
+                if (fileInput) fileInput.value = '';
             }
         };
         reader.readAsArrayBuffer(file);
