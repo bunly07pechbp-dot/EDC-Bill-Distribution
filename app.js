@@ -51,6 +51,88 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('✅ Clear Memory Button initialized');
     }
 
+    // ==========================================================================
+    // 📱 3. មុខងារលោតផ្ទាំងបញ្ជីឈ្មោះ Digital ពេលចុចលើកាត DIGITAL
+    // ==========================================================================
+    const digitalModalHtml = `
+        <div class="method-picker-overlay" id="digital-list-modal" style="display:none; z-index: 99999;">
+            <div class="method-picker-sheet" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column; padding-bottom: 20px;">
+                <div class="method-picker-handle"></div>
+                <div class="method-picker-header">
+                    <span>📱 បញ្ជីឈ្មោះ Digital (<span id="digital-list-count">0</span>)</span>
+                    <button type="button" class="method-picker-close" id="digital-list-close">✕</button>
+                </div>
+                <div style="overflow-y: auto; flex-grow: 1; margin-top: 10px;">
+                    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 13px;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card, #1e293b); box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: var(--text-secondary, #94a3b8);">
+                            <tr>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid var(--border, #334155);">ល.រ</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid var(--border, #334155);">លេខ IN</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid var(--border, #334155);">ឈ្មោះអតិថិជន</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid var(--border, #334155);">ប.ត</th>
+                            </tr>
+                        </thead>
+                        <tbody id="digital-list-tbody" style="color: var(--text, #f8fafc);">
+                            <!-- ទិន្នន័យនឹងលោតចូលទីនេះ -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', digitalModalHtml);
+
+    const digitalModal = document.getElementById('digital-list-modal');
+    const closeBtn = document.getElementById('digital-list-close');
+
+    // មុខងារបិទ Modal
+    if (digitalModal && closeBtn) {
+        const closeModal = () => {
+            digitalModal.classList.remove('active');
+            setTimeout(() => digitalModal.style.display = 'none', 300);
+        };
+        closeBtn.addEventListener('click', closeModal);
+        digitalModal.addEventListener('click', (e) => {
+            if (e.target.id === 'digital-list-modal') closeModal();
+        });
+    }
+
+    // ចាប់ការចុចលើកាត "DIGITAL" នៅលើផ្ទាំង Dashboard
+    document.body.addEventListener('click', (e) => {
+        // ស្វែងរកកាតដែលអ្នកចុច
+        const statCard = e.target.closest('div.stat-card') || e.target.closest('div'); 
+        
+        // បើកាតនោះមានពាក្យ "DIGITAL" (តែមិនមែន PENDING ទេ)
+        if (statCard && statCard.textContent.includes('DIGITAL') && !statCard.textContent.includes('PENDING')) {
+            
+            // ទាញយកអ្នកដែលប្រើ Digital ពី Master Data
+            const digitalData = (window.masterData || []).filter(r => 
+                r.method && r.method.toLowerCase().includes('digital')
+            );
+
+            document.getElementById('digital-list-count').innerText = digitalData.length;
+            const tbody = document.getElementById('digital-list-tbody');
+
+            if (digitalData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-secondary);">📭 មិនទាន់មានអតិថិជន Digital ទេ</td></tr>';
+            } else {
+                tbody.innerHTML = digitalData.map((r, i) => `
+                    <tr style="border-bottom: 1px solid var(--border, #334155);">
+                        <td style="padding: 10px 8px; color: var(--text-secondary, #94a3b8);">${i + 1}</td>
+                        <td style="padding: 10px 8px; font-family: monospace;"><strong>${r.invoice || r.houseNumber || ''}</strong></td>
+                        <td style="padding: 10px 8px;">${r.name || r.customerName || 'N/A'}</td>
+                        <td style="padding: 10px 8px; color: #ea580c; font-weight: bold;">${r.box || r.boxNumber || 'N/A'}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // បង្ហាញ Modal ឡើង
+            digitalModal.style.display = 'flex';
+            setTimeout(() => digitalModal.classList.add('active'), 10);
+        }
+    });
+    console.log('✅ Digital List feature initialized');
+
     console.log('✅ All modules initialized');
 });
 
